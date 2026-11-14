@@ -542,7 +542,8 @@ $_SERVER['REMOTE_ADDR'] = '2001:db8:bbbb::1';
 check(GameNight\rate_limit('req', GameNight\client_key(), 100, 60), 'anderes /48-Netz ist nicht betroffen');
 
 // ---------------------------------------------------------------------------
-$log = (string)@file_get_contents("$tmp/server.log");
+// Meldungen beim Start von PHP („in Unknown on line 0“, z. B. zu Erweiterungen) kommen von der Umgebung, nicht vom Plugin
+$log = preg_replace('/^.*PHP \w+:.* in Unknown on line 0\R?/m', '', (string)@file_get_contents("$tmp/server.log"));
 check(!preg_match('/PHP (Warning|Notice|Fatal|Deprecated)/', $log), 'keine PHP-Warnungen im Serverlog',
     implode("\n", array_slice(preg_grep('/PHP (Warning|Notice|Fatal|Deprecated)/', explode("\n", $log)), 0, 5)));
 
