@@ -1,0 +1,475 @@
+/* Game Night – alles liegt unter .sa (in Grav kommen Kopf- und Fußzeile vom Theme, in der
+   Standalone-Version von standalone.css). Gestaltung zentriert; längere Texte und Listen
+   (Regeln, Zuglisten, Protokolle, Mitspielerlisten) bleiben linksbündig, damit sie gut lesbar sind. */
+
+/* ======================================================================
+   Grundlagen
+   ====================================================================== */
+:root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #2f3638;
+    --muted: #6f7b7d;
+    --line: #dde2e5;
+    --accent: #1f8cd6;
+    --accent-2: #175e91;
+    --good: #1a7f3c;
+    --bad: #d64545;
+    --warn-bg: #fff6dd;
+    --sel: #f2b84b;
+
+    /* einheitliche Rundungen: alle Knöpfe (und Plätze, Eingabefelder) gleich, Kästen etwas runder */
+    --r-btn: 10px;
+    --r-box: 12px;
+
+    --sq-light: #eedfc6;
+    --sq-dark: #b58863;
+
+    --zk-cell0: #f3ead8;
+    --zk-cell1: #e6e0d2;
+    --zk-stone0: #fffdf6;
+    --zk-stone0-text: #2d2a24;
+    --zk-stone1: #3a4250;
+    --zk-stone1-text: #ffffff;
+}
+
+.sa { overflow-x: clip; text-align: center; max-width: 1100px; margin: 0 auto; padding-bottom: 4rem; color: var(--text); }
+.sa * { box-sizing: border-box; }
+.sa a { color: var(--accent); text-decoration: none; }
+.sa a:hover { color: var(--accent-2); }
+.sa h2 { margin: .5rem 0 1rem; font-size: 1.35rem; color: #454b4d; }
+.sa h3 { margin: .25rem 0; color: #454b4d; }
+.sa h4 { margin: 0 0 .5rem; }
+.sa .muted { color: var(--muted); }
+.sa .small { font-size: .85rem; }
+.sa .error { color: var(--bad); }
+.sa section { margin-bottom: 2rem; }
+.app { padding: 0 0 2rem; }
+
+.btn {
+    font: inherit; font-size: .95rem; cursor: pointer;
+    padding: .45rem .9rem; border-radius: var(--r-btn);
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sa .btn.primary:disabled { background: #9bb8cc; border-color: #9bb8cc; }
+.btn.small { padding: .15rem .55rem; font-size: .85rem; }
+.link { font: inherit; background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
+.link.muted { color: var(--muted); }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box); padding: 1rem; }
+.notice { display: inline-block; background: var(--warn-bg); padding: .5rem .9rem; border-radius: var(--r-btn); }
+.sa .notice { margin: 0; }
+
+.toast {
+    position: fixed; left: 50%; bottom: 3.25rem; transform: translateX(-50%);   /* über der Sprach-Fußzeile des Themes */
+    background: #222; color: #fff; padding: .6rem 1rem; border-radius: 8px; max-width: calc(100% - 32px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.25); z-index: 10;
+}
+
+@keyframes pulse { to { transform: scale(.85); } }
+
+/* gezeichnete Spielsymbole (z. B. Pyramide) so groß wie ein Emoji */
+.icon-svg { width: 1em; height: 1em; vertical-align: -0.125em; display: inline-block; }
+
+/* ======================================================================
+   Kopfzeile und Übersicht
+   ====================================================================== */
+/* Übersicht: „Spieleabend“ als Seitentitel wie auf den anderen Seiten des Themes, der Name darunter */
+.sa-bar { display: flex; flex-direction: column; align-items: center; gap: .15rem; margin-bottom: 1.25rem; }
+.sa a.sa-brand { font-weight: 700; font-size: 2rem; line-height: 1.2; color: #454b4d; }
+.whoami { font-size: .9rem; color: var(--muted); }
+
+/* Offene Tische */
+.sa section > h2 { font-size: 1.2rem; margin: .5rem 0 .75rem; }
+.room-list { display: flex; flex-direction: column; gap: .5rem; max-width: 640px; margin: 0 auto; }
+.sa a.room-row, .room-row { display: flex; align-items: center; gap: .9rem; color: var(--text); padding: .7rem 1rem; text-align: left; }
+.sa a.room-row:hover { border-color: var(--accent); color: var(--text); }
+.room-main { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.4; }
+
+/* Spiele: je eine Zeile (Symbol | Name, Beschreibung, Personen | „Neuer Tisch“); ab ca. 720 px zwei Spalten */
+.game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: .6rem; max-width: 900px; margin: 0 auto; }
+.game-card {
+    font: inherit; color: var(--text); text-align: left; cursor: pointer;
+    display: flex; align-items: center; gap: .85rem; padding: .7rem .9rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box);
+    transition: border-color .15s, box-shadow .15s;
+}
+.game-card:hover, .game-card:focus-visible { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+.game-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.game-name { font-weight: 700; font-size: 1.05rem; color: #454b4d; }
+.game-desc { font-size: .88rem; line-height: 1.35; color: var(--muted); }
+.game-seats { font-size: .8rem; color: var(--muted); }
+.game-go { flex: none; padding: .4rem .7rem; border-radius: var(--r-btn); background: var(--accent); color: #fff; font-size: .9rem; font-weight: 600; }
+.game-card:hover .game-go { background: var(--accent-2); }
+.badge { display: inline-block; white-space: nowrap; margin-left: .4rem; padding: 0 .4rem; border-radius: 6px; background: var(--warn-bg); color: #8a6100; font-size: .72rem; font-weight: 600; vertical-align: .1em; }
+/* Spielsymbol im hellgrünen Kreis (Grün wie die Navigation des Themes) */
+.game-icon {
+    flex: none; width: 3rem; height: 3rem; border-radius: 50%; background: #e8f3e8;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; line-height: 1;
+}
+.game-icon.small { width: 2.25rem; height: 2.25rem; font-size: 1.2rem; }
+
+/* Hinweis unten auf der Übersicht: jeder Satz in eigener Zeile, Zeilen gleich lang */
+.sa-note { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.sa-note p { margin: 0 0 .4rem; text-wrap: balance; }
+.sa-note-line { display: block; }
+
+/* ======================================================================
+   Am Tisch (für alle Spiele)
+   ====================================================================== */
+/* Kopf: Zurück-Link links, Tischname mittig, Verbindungspunkt rechts */
+.room-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.room-head > a { justify-self: start; }
+.room-head h2 { margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: .45rem; }
+.game-icon.tiny { width: 1.9rem; height: 1.9rem; font-size: 1.05rem; }
+.room-head .room-right { justify-self: end; display: flex; align-items: center; gap: .75rem; min-width: 0; }
+/* Am Tisch: keine eigene Kopfzeile, der Name steht rechts im Tischkopf */
+.sa.in-room > .sa-bar { display: none; }
+.room-head .whoami { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.conn { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--good); }
+.conn.bad { background: var(--bad); }
+
+.seats { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin: 1rem 0; }
+.seat {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .4rem .75rem; border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--card);
+}
+.seat-label { font-size: .8rem; color: var(--muted); }
+/* lange Namen (bis 24 Zeichen ohne Leerzeichen) mit „…“ kürzen statt aus dem Kästchen ragen lassen */
+.seat { max-width: 100%; }
+.seat > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Wer dran ist: grün wie bei Trombone und „Wer bin ich?“ (der eigene Platz trägt „(du)“) */
+.seat.active { background: #eaf6ea; border-color: #006400; box-shadow: 0 0 0 1px #006400; }
+
+.status { font-weight: 600; min-height: 1.5em; display: flex; align-items: center; justify-content: center; gap: .5rem; flex-wrap: wrap; }
+.status.my-turn { color: var(--good); background: #eaf6ea; border-radius: var(--r-btn); padding: .15rem .6rem; }
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; align-items: center; margin: 1.25rem 0; }
+/* selten gebraucht: zurückhaltender als die Spielknöpfe */
+.controls .btn:not(.primary) { font-size: .88rem; padding: .35rem .75rem; background: transparent; }
+.rules { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box); padding: .75rem 1rem; text-align: left; }
+.rules summary { cursor: pointer; font-weight: 600; }
+
+/* ======================================================================
+   Vier in einer Reihe
+   ====================================================================== */
+.c4-board {
+    display: inline-grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    background: #1b5fae; padding: 10px; border-radius: 14px; width: min(100%, 470px);
+}
+.c4-col { display: grid; gap: 6px; border-radius: 8px; }
+.c4-board.can-play .c4-col { cursor: pointer; }
+.c4-board.can-play .c4-col:hover { background: rgba(255,255,255,.15); }
+.c4-cell { aspect-ratio: 1; border-radius: 50%; background: var(--bg); box-shadow: inset 0 3px 4px rgba(0,0,0,.25); }
+.c4-cell.red, .c4-dot.red { background: #e23b3b; }
+.c4-cell.yellow, .c4-dot.yellow { background: #f5c518; }
+.c4-cell.last { outline: 3px solid rgba(255,255,255,.7); }
+.c4-cell.win { outline: 4px solid #fff; animation: pulse 1s infinite alternate; }
+.c4-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+
+/* ======================================================================
+   Schach zu viert
+   ====================================================================== */
+/* Brett und Zugliste gemeinsam mittig */
+.chess-wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; align-items: flex-start; }
+.chess-board {
+    display: grid; grid-template-columns: repeat(8, 1fr);
+    width: min(100%, 520px); aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 2px solid var(--sq-dark);
+    user-select: none;
+}
+.sq { position: relative; display: flex; align-items: center; justify-content: center; }
+.sq.light { background: var(--sq-light); }
+.sq.dark { background: var(--sq-dark); }
+.sq.lastmove { background: color-mix(in srgb, #f6e05e 55%, var(--sq-light)); }
+.sq.dark.lastmove { background: color-mix(in srgb, #f6e05e 45%, var(--sq-dark)); }
+.sq.movable { cursor: pointer; box-shadow: inset 0 0 0 3px rgba(46, 158, 91, .7); }
+.sq.selected { box-shadow: inset 0 0 0 4px var(--sel); }
+.sq.target { cursor: pointer; }
+.sq.target::after { content: ""; width: 28%; height: 28%; border-radius: 50%; background: rgba(0,0,0,.25); }
+.sq.target.capture::after { width: 86%; height: 86%; background: none; border: 5px solid rgba(0,0,0,.25); position: absolute; }
+.sq.check { background: radial-gradient(circle, #ff4d4d 0%, rgba(255,77,77,.4) 55%, transparent 75%); }
+.piece { font-size: min(9.5vw, 50px); line-height: 1; }
+.piece.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 1px #000; }
+.piece.b { color: #111; text-shadow: 0 0 2px rgba(255,255,255,.6); }
+.sq .piece { position: absolute; }
+.coord { position: absolute; font-size: .65rem; color: rgba(0,0,0,.45); font-weight: 600; }
+.coord.rank { top: 2px; left: 3px; }
+.coord.file { bottom: 1px; right: 4px; }
+.piece-choice { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; align-items: center; margin: .5rem 0 1rem; }
+.piece-btn { display: inline-flex; align-items: center; gap: .35rem; }
+.piece-btn .piece, .chosen .piece { font-size: 1.6rem; }
+.chosen { font-size: 1.1rem; font-weight: 600; display: inline-flex; align-items: center; gap: .25rem; }
+.side-panel { flex: 0 1 220px; min-width: 180px; max-height: 520px; overflow: auto; text-align: left; }
+.movelist { margin: 0; padding-left: 2rem; font-family: ui-monospace, monospace; font-size: .9rem; white-space: pre; text-align: left; }
+
+/* ======================================================================
+   Zahlenkampfspiel
+   ====================================================================== */
+.zk-scroll { display: flex; overflow-x: auto; padding-bottom: .25rem; }
+.zk-scroll > .zk-board { margin: 0 auto; }
+.zk-scroll > .zk-board:not(.vertical) { flex: 1 1 auto; }   /* quer: volle Breite */
+.zk-board {
+    display: grid; grid-template-columns: repeat(16, minmax(40px, 1fr)); grid-auto-rows: minmax(40px, auto);
+    min-width: 660px; border: 2px solid var(--line); border-radius: 6px; overflow: hidden;
+}
+/* Hochkant: 8 Spalten × 16 Zeilen; Breite so, dass das Brett auch in der Höhe meist auf den Bildschirm passt */
+.zk-board.vertical {
+    grid-template-columns: repeat(8, 1fr); grid-auto-rows: auto; min-width: 0;
+    width: min(100%, max(260px, calc((100vh - 330px) / 2)), 460px);
+    width: min(100%, max(260px, calc((100svh - 330px) / 2)), 460px);   /* svh: ohne die Adressleiste des Handys */
+}
+.zk-cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative;
+    border-right: 1px solid rgba(0,0,0,.07); border-bottom: 1px solid rgba(0,0,0,.07);
+}
+.zk-cell.home0 { background: var(--zk-cell0); }
+.zk-cell.home1 { background: var(--zk-cell1); }
+.zk-cell.mid { border-left: 3px solid var(--muted); }    /* Mittellinie quer */
+.zk-cell.midh { border-top: 3px solid var(--muted); }    /* Mittellinie hochkant */
+.zk-cell.lastmove { box-shadow: inset 0 0 0 3px rgba(31, 140, 214, .55); }
+.zk-cell.target { cursor: pointer; }
+.zk-cell.target::after { content: ""; position: absolute; width: 26%; height: 26%; border-radius: 50%; background: rgba(46, 158, 91, .65); }
+.zk-cell.target.capture::after { background: var(--bad); width: 34%; height: 34%; }
+.zk-cell.target.winning::after { background: gold; width: 50%; height: 50%; box-shadow: 0 0 8px gold; }
+
+.zk-stone {
+    width: 84%; height: 84%; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .8rem; font-variant-numeric: tabular-nums; z-index: 1;
+}
+.zk-stone.side0 { background: var(--zk-stone0); color: var(--zk-stone0-text); }
+.zk-stone.side1 { background: var(--zk-stone1); color: var(--zk-stone1-text); }
+.zk-stone.round { border-radius: 50%; border: 2px solid rgba(0,0,0,.35); }
+.zk-stone.round.small { width: 66%; height: 66%; }
+.zk-stone.square { border-radius: 3px; border: 2px solid rgba(0,0,0,.35); }
+.zk-stone.tri { clip-path: polygon(50% 2%, 100% 96%, 0 96%); align-items: flex-end; padding-bottom: 8%; }
+/* Stufenpyramide mit fünf Stufen, nur rechte Winkel (wie das Spielsymbol) */
+.zk-stone.pyramid {
+    clip-path: polygon(0 100%, 100% 100%, 100% 80%, 90% 80%, 90% 60%, 80% 60%, 80% 40%, 70% 40%, 70% 20%, 60% 20%,
+                       60% 0, 40% 0, 40% 20%, 30% 20%, 30% 40%, 20% 40%, 20% 60%, 10% 60%, 10% 80%, 0 80%);
+    align-items: flex-end; padding-bottom: 6%; width: 92%; height: 92%;
+}
+.zk-stone.side0.pyramid { background: linear-gradient(#e7b84a, #fff3cf); }
+.zk-stone.side1.pyramid { background: linear-gradient(#8a6a1f, #59657a); }
+.zk-stone.conv { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.zk-stone.tri.conv, .zk-stone.pyramid.conv { filter: drop-shadow(0 0 2px var(--accent)); }
+.zk-stone.own { cursor: pointer; }
+.zk-stone.selected { box-shadow: 0 0 0 3px var(--sel); filter: drop-shadow(0 0 4px var(--sel)); }
+.zk-stone.harmony { animation: pulse .8s infinite alternate; filter: drop-shadow(0 0 6px gold); }
+.zk-num { pointer-events: none; }
+
+.zk-reserve { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .35rem; margin: .5rem 0; min-height: 44px; }
+.zk-res-btn { width: 42px; height: 42px; padding: 0; border: 1px solid var(--line); border-radius: var(--r-btn); background: var(--card); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.zk-res-btn:disabled { cursor: default; }
+.zk-res-btn.selected { border-color: var(--sel); box-shadow: 0 0 0 2px var(--sel); }
+.zk-legend { margin: .25rem 0 1rem; }
+.zk-logbox { text-align: left; }
+.zk-logbox summary { cursor: pointer; font-weight: 600; }
+.zk-log { font-size: .9rem; padding-left: 1.5rem; }
+
+/* ======================================================================
+   Trombone (zuerst fürs Handy gebaut: Ansage, Karten, Bieten und „Trombone!“ passen ohne Scrollen auf den Bildschirm)
+   ====================================================================== */
+.tb, .tb-main, .tb-side { display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+.tb { max-width: 640px; margin: 0 auto; width: 100%; }
+/* breite Bildschirme: zwei Spalten (Spiel | Mitspielende und Verlauf), als Ganzes mittig */
+@media (min-width: 900px) {
+    .tb.tb-game { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 1.5rem; align-items: start; max-width: 1000px; }
+    .tb-side { position: sticky; top: 1rem; }
+}
+.tb-status { font-size: 1.15rem; font-weight: 600; color: #454b4d; margin-top: .5rem; }   /* Abstand: nicht wie Teil des Tischnamens wirken */
+.tb-status.mine { color: var(--good); animation: tbpulse 1.2s ease-in-out 2; border-radius: var(--r-btn); margin: 0 -.4rem; padding: 0 .4rem; }
+.tb-status.over { color: var(--bad); }
+@keyframes tbpulse { 50% { background: #d8f0d8; } }   /* aufleuchten statt vergrößern: nichts ragt über den Rand */
+.tb-info { margin-top: -.4rem; }
+.tb-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: .25rem; }
+
+.tb-current, .tb-reveal, .tb-hand, .tb-composer, .tb-deck {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box); padding: .55rem .7rem;
+}
+.tb-current { border-width: 2px; border-color: #006400; display: flex; flex-direction: column; gap: .4rem; }
+/* „AKTUELLE ANSAGE  Paar: zwei Könige  von Ben“ in einer (umbrechenden) Zeile */
+.tb-curline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: .1rem .5rem; }
+.tb-curline .tb-label { margin: 0; }
+.tb-current .tb-hand { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; padding: .4rem 0 0; }
+.tb-bid { font-size: 1.1rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+
+/* Karten */
+.tb-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: .45rem; }
+.tb-card {
+    width: 52px; height: 74px; border-radius: 8px; background: #fff; border: 1px solid #c9ced2;
+    box-shadow: 0 2px 4px rgba(0,0,0,.12);
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;
+    font-weight: 700; user-select: none;
+}
+.tb-card .tb-rank { font-size: 1.35rem; }
+.tb-card .tb-suit { font-size: 1.4rem; }
+.tb-card.red { color: #c62828; }
+.tb-card.black { color: #1d2327; }
+.tb-card.joker { color: #6a1b9a; background: linear-gradient(160deg, #fff, #f3e5f5); }
+.tb-card.joker .tb-suit { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+.tb-card.small { width: 36px; height: 50px; border-radius: 6px; }
+.tb-card.small .tb-rank { font-size: 1rem; }
+.tb-card.small .tb-suit { font-size: 1rem; }
+.tb-card.small.joker .tb-suit { font-size: .5rem; }
+.tb-card.hit { outline: 3px solid var(--sel); outline-offset: 1px; }
+
+/* Aktionen: Trombone-Knopf und Gebot zusammenstellen */
+.tb-actions { display: flex; flex-direction: column; gap: .9rem; }
+.tb-trombone {
+    font: inherit; cursor: pointer; border: 0; border-radius: var(--r-btn); padding: .45rem 1rem;
+    background: #c62828; color: #fff; display: flex; flex-direction: column; align-items: center; gap: .1rem;
+    box-shadow: 0 3px 0 #8e1b1b; min-height: 52px;
+}
+.tb-trombone b { font-size: 1.25rem; letter-spacing: .02em; }
+.tb-trombone span { font-size: .8rem; opacity: .9; }
+.tb-trombone:active { transform: translateY(2px); box-shadow: 0 1px 0 #8e1b1b; }
+
+.tb-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; margin-bottom: .6rem; }
+.tb-chip {
+    font: inherit; font-size: .92rem; cursor: pointer; min-height: 40px; padding: .35rem .75rem;
+    border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.tb-chip.on { background: #006400; border-color: #006400; color: #fff; }
+.tb-chip:disabled { opacity: .35; cursor: default; }
+/* Kategorien beim Bieten: Raster aus 4 Spalten (8 Kategorien = 2 Zeilen) */
+.tb-chips.tb-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .3rem; margin-bottom: .45rem; }
+.tb-cats .tb-chip { font-size: .82rem; line-height: 1.15; min-height: 36px; padding: .2rem .15rem; hyphens: manual; }
+.tb-rankrow { margin-bottom: .45rem; }
+.tb-ranks { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: .3rem; }
+.tb-ranks.r8 { grid-template-columns: repeat(4, 1fr); }   /* 32er-Blatt: 2 × 4 statt 6 + 2 */
+@media (min-width: 560px) { .tb-ranks.r8 { grid-template-columns: repeat(8, 1fr); } }
+.tb-rankbtn {
+    font: inherit; font-weight: 700; font-size: 1rem; min-height: 38px; cursor: pointer;
+    border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.tb-rankbtn.on { background: #006400; border-color: #006400; color: #fff; }
+.tb-rankbtn:disabled { opacity: .3; cursor: default; }
+.btn.tb-big { width: 100%; min-height: 46px; font-size: 1.05rem; font-weight: 600; border-radius: var(--r-btn); }
+
+/* Mitspielende */
+.tb-players { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-box); overflow: hidden; background: var(--card); text-align: left; }
+.tb-player {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name backs" "bid bid";
+    align-items: center; gap: .1rem .75rem; padding: .4rem .8rem; border-top: 1px solid var(--line); position: relative;
+}
+.tb-player:first-child { border-top: 0; }
+.tb-player.active { background: #eaf6ea; box-shadow: inset 4px 0 0 #006400; }
+.tb-player.me .tb-pname { font-weight: 700; }
+.tb-player.out { opacity: .45; }
+.tb-player.joining { background: #fffaf0; }
+.tb-player.joining .tb-pbid { color: #a06b00; }
+.tb-player .tb-pname { grid-area: name; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-backs { grid-area: backs; display: inline-flex; align-items: center; gap: 2px; }
+.tb-player .tb-backs { margin-right: 2.4rem; }   /* Platz für das × */
+.tb-back { width: 10px; height: 15px; border-radius: 2px; background: repeating-linear-gradient(45deg, #1f5fae, #1f5fae 2px, #3c7fd0 2px, #3c7fd0 4px); }
+.tb-pbid { grid-area: bid; color: var(--muted); }
+.tb-pbid:empty { display: none; }
+/* × zum Entfernen: großzügige Tippfläche (40 × 40 px) */
+.tb-remove { position: absolute; right: 0; top: 0; font-size: 1.15rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+
+/* Auflösung */
+.tb-reveal { display: flex; flex-direction: column; gap: .25rem; border-width: 2px; }
+.tb-reveal.true { border-color: var(--good); }
+.tb-reveal.false { border-color: var(--bad); }
+.tb-verdict { font-size: 1.15rem; font-weight: 800; }
+.tb-reveal.true .tb-verdict { color: var(--good); }
+.tb-reveal.false .tb-verdict { color: var(--bad); }
+.tb-loser { font-weight: 600; }
+.tb-allhands { display: flex; flex-direction: column; gap: .3rem; margin-top: .4rem; }
+.tb-onehand { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: .5rem; text-align: left; }
+.tb-onehand.me .tb-pname { font-weight: 700; }
+.tb-onehand .tb-pname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-onehand .tb-cards { gap: .3rem; justify-content: flex-start; }
+
+.tb-history { text-align: left; }
+.tb-history summary { cursor: pointer; font-weight: 600; }
+.tb-history.old { opacity: .6; }
+.tb-history ol, .tb-history ul { margin: .4rem 0 0; padding-left: 1.4rem; font-size: .92rem; }
+.tb-over { display: flex; flex-direction: column; gap: .75rem; }
+.tb-extras { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: center; }
+
+/* Person ins laufende Spiel aufnehmen */
+.tb-proposal { background: var(--warn-bg); border: 2px solid var(--sel); border-radius: var(--r-box); padding: .8rem 1rem; display: flex; flex-direction: column; gap: .35rem; font-weight: 600; }
+.tb-vote { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: .25rem; }
+.tb-vote .btn { min-height: 44px; flex: 1 1 8rem; font-weight: 600; }
+.tb-add { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box); padding: .8rem 1rem; }
+.tb-add .tb-label { text-align: left; }
+.tb-add-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; }
+
+/* ======================================================================
+   Wer bin ich? (nutzt die Bausteine von Trombone: .tb, .tb-players, .tb-chip …)
+   ====================================================================== */
+/* Liste „Name | Begriff von … | Knopf“; die Spalten aller Zeilen fluchten (subgrid, sonst feste Namensspalte) */
+.wb-list {
+    display: grid; grid-template-columns: fit-content(32%) minmax(0, 1fr) auto;
+    border: 1px solid var(--line); border-radius: var(--r-box); overflow: hidden; background: var(--card); text-align: left;
+}
+.wb-line {
+    grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) auto; grid-template-columns: subgrid;
+    align-items: center; gap: .15rem .75rem; padding: .5rem .8rem; border-top: 1px solid var(--line);
+}
+.wb-line:first-child { border-top: 0; }
+.wb-line.me { background: #eaf6ea; box-shadow: inset 4px 0 0 #006400; }
+.wb-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-val { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.wb-by { white-space: nowrap; }   /* „von dir · ändern“ nicht auseinanderreißen */
+.wb-act { justify-self: end; display: flex; align-items: center; }
+.wb-act.wb-ok { color: var(--good); font-weight: 600; }
+.wb-line .tb-remove { position: static; width: 32px; height: 32px; margin: -6px -8px -6px 0; }   /* × in der Zeile statt oben rechts */
+.wb-line > .wb-edit { grid-column: 1 / -1; margin-top: .3rem; }
+.wb-term { font-size: 1.05rem; font-weight: 700; }
+.tb-composer .wb-term { font-size: 1.35rem; line-height: 1.25; overflow-wrap: anywhere; }
+.wb-term.wb-secret { color: var(--muted); letter-spacing: .15em; }
+/* mindestens 16 px, sonst zoomt iOS beim Antippen hinein */
+.wb-input {
+    font: inherit; font-size: max(16px, 1.1rem); width: 100%; min-height: 48px; padding: .5rem .75rem; margin-bottom: .6rem;
+    border: 1px solid var(--line); border-radius: var(--r-btn); background: #fff; color: var(--text);
+}
+.wb-input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+.wb-links { display: flex; flex-wrap: wrap; gap: .4rem 1rem; justify-content: center; margin-top: .5rem; }
+.tb-player.wb-row { padding-right: 2.8rem; grid-template-areas: "name bid"; }   /* Platz für das ×; Stand rechts neben dem Namen */
+.tb-player.wb-row .tb-pbid { justify-self: end; text-align: right; }
+.tb-player.wb-done .tb-pbid { color: var(--good); }
+
+/* ======================================================================
+   Schmale Bildschirme (Handy)
+   ====================================================================== */
+@media (max-width: 700px) {
+    .sa-bar { margin-bottom: .75rem; }
+    .sa a.sa-brand { font-size: 1.6rem; }
+    /* Tischkopf: Zurück-Link, Name und Punkt in einer Zeile, Tischname darunter */
+    .room-head { display: flex; align-items: center; gap: .1rem .75rem; }
+    .room-head .room-right { margin-left: auto; max-width: calc(100% - 8rem); }   /* lange Namen mit „…“ statt Umbruch */
+    .room-head h2 { font-size: 1.1rem; flex: 1 1 100%; order: 3; margin-top: .1rem; }
+    /* Spielliste: statt „Neuer Tisch“ ein runder „+“-Knopf, damit die Beschreibung Platz hat */
+    .game-card { gap: .7rem; padding: .6rem .75rem; }
+    .game-go { width: 2.4rem; height: 2.4rem; padding: 0; display: flex; align-items: center; justify-content: center; }
+    .game-go::before { content: "+"; font-size: 1.6rem; font-weight: 400; line-height: 1; }
+    .game-go-text { display: none; }
+    /* Plätze kompakt in zwei Spalten, damit das Spielbrett weiter oben beginnt */
+    .seats { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: .75rem 0; }
+    .seat { flex-wrap: wrap; gap: 0 .4rem; padding: .3rem .65rem; font-size: .92rem; line-height: 1.35; min-width: 0; }
+    /* oben Platzname und „aufstehen“ bzw. ×, darunter der Name */
+    .seat-label { flex: 1 1 auto; font-size: .72rem; text-align: left; }
+    .seat > .link { order: 1; font-size: .75rem; }
+    .seat > b { order: 2; flex: 1 1 100%; text-align: left; }
+    .seat > .btn { order: 3; }
+    .side-panel { flex-basis: 100%; }
+    .seats { margin: .5rem 0; }
+    .game-area > .status { margin: .4rem 0; }
+    /* Schach: die sechs Figurenarten in einer Reihe (Symbol über dem Namen) */
+    .piece-choice { gap: .25rem; margin: .25rem 0 .5rem; }
+    .piece-btn { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 0; padding: .15rem .1rem; font-size: .72rem; line-height: 1.2; }
+    .zk-reserve { min-height: 32px; margin: .25rem 0; }
+    .controls { margin: .9rem 0; }
+}
+
+@media (max-width: 600px) {
+    .piece { font-size: 10vw; }
+    /* quer liegendes Zahlenkampf-Brett (Zuschauende im Querformat): feste Feldgröße, seitlich scrollbar */
+    .zk-board:not(.vertical) { grid-template-columns: repeat(16, 34px); grid-auto-rows: 34px; min-width: 0; width: max-content; }
+    .zk-board:not(.vertical) .zk-stone { font-size: .62rem; width: 92%; height: 92%; border-width: 1px !important; }
+    .zk-board:not(.vertical) .zk-stone.round.small { width: 72%; height: 72%; }
+}

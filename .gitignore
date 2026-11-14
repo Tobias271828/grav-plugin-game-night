@@ -1,0 +1,5 @@
+dist/
+standalone/config.php
+standalone/data/*
+!standalone/data/.htaccess
+tests/e2e/node_modules/

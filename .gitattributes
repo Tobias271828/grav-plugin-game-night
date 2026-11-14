@@ -1,0 +1,8 @@
+# Nicht im Grav-Paket (GitHub-Quellarchiv, das Grav bei Installation/Update lädt)
+/standalone     export-ignore
+/build.php      export-ignore
+/.github        export-ignore
+/.gitattributes export-ignore
+/.gitignore     export-ignore
+/tests          export-ignore
+/tools          export-ignore

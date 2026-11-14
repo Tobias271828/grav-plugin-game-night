@@ -1,0 +1,25 @@
+# Tests bei jedem Push und Pull Request (mit der kleinsten und einer aktuellen PHP-Version)
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.0', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Syntax prüfen
+        run: |
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+          for f in assets/js/*.js; do node --check "$f"; done
+      - name: API-Tests
+        run: php tests/api-test.php

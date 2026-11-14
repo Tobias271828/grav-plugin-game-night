@@ -1,0 +1,33 @@
+enabled: true
+
+# Instanzen: Name => Einstellungen. Eigene Instanzen in user/config/plugins/game-night.yaml eintragen
+# (nicht hier, sonst gehen sie beim nächsten Plugin-Update verloren).
+#
+# Jede Instanz braucht eine Seite mit dem Template „game-night“ unter genau dieser Route.
+# Die Tische liegen in user/data/game-night/<name>/, die API ist unter <route>/api erreichbar.
+#
+# Einstellungen (alle außer „route“ optional, hier mit ihren Voreinstellungen):
+#   route: /meine-spiele        # Pflicht
+#   lobby: true                 # Liste aller Tische zeigen; false = Tische nur per Link erreichbar
+#   max_rooms: 200              # höchstens so viele Tische gleichzeitig
+#   room_ttl_days: 7            # Tische ohne Aktivität nach so vielen Tagen löschen
+#   empty_room_ttl_hours: 0     # Tische, an denen niemand sitzt, schon nach so vielen Stunden löschen (0 = aus)
+#   requests_per_minute: 1200   # Anfragen pro IP und Minute (0 = unbegrenzt); jede offene Seite fragt 1×/s
+#   creates_per_hour: 30        # neue Tische pro IP und Stunde (0 = unbegrenzt)
+#   rooms_per_client: 20        # gleichzeitig bestehende Tische pro IP (zählt je Kalendertag; 0 = unbegrenzt)
+#   contact_url: ''             # Link für Hinweise/Fehlermeldungen in der Übersicht (leer = keiner)
+#   games: []                   # angebotene Spiele (leer = alle): trombone, werbinich, handbrain,
+#                               # connect4 (Vier in einer Reihe), zahlenkampf
+#
+# Beispiel:
+#   instances:
+#     freunde:
+#       route: /spieleabend-x7k2q9
+#     offen:
+#       route: /spiele
+#       lobby: false
+#       empty_room_ttl_hours: 1
+#       requests_per_minute: 600
+#       creates_per_hour: 10
+#       games: [trombone, werbinich, handbrain, connect4]
+instances: {}

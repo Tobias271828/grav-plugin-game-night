@@ -1,0 +1,52 @@
+# Bei einem Versions-Tag (z. B. 1.0.1): prüfen, beide Pakete bauen und als GitHub-Release veröffentlichen.
+# Grav (GPM) erkennt neue Versionen an diesem Release.
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          extensions: zip
+
+      - name: Version prüfen
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          grep -qxF "version: ${VERSION}" blueprints.yaml || { echo "blueprints.yaml hat nicht version: ${VERSION}"; exit 1; }
+          grep -qxF "# v${VERSION}" CHANGELOG.md || { echo "CHANGELOG.md hat keinen Abschnitt # v${VERSION}"; exit 1; }
+
+      - name: Syntax prüfen
+        run: |
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+          for f in assets/js/*.js; do node --check "$f"; done
+
+      - name: API-Tests
+        run: php tests/api-test.php
+
+      - name: Pakete bauen
+        run: php build.php
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Abschnitt dieser Version aus dem CHANGELOG als Release-Text
+          awk -v v="# v${GITHUB_REF_NAME}" '$0 == v {on=1; next} /^# v/ {on=0} on' CHANGELOG.md > notes.md
+          # Wiederholter Lauf nach einem halben Release: Dateien nur ersetzen
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/*.zip --title "${GITHUB_REF_NAME}" --notes-file notes.md
+          fi

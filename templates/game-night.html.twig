@@ -1,0 +1,45 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block head %}
+    {{ parent() }}
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+{% endblock %}
+
+{% set version = game_night.version %}
+{# Sprache: die des Sprachumschalters, ohne Mehrsprachigkeit die Standardsprache der Website; alles außer Deutsch → Englisch #}
+{% set gn_lang = (grav.language.getActive ?: grav.config.site.default_lang) == 'de' ? 'de' : 'en' %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ url('plugin://game-night/assets/style.css')|e }}?v={{ version }}">
+{% endblock %}
+
+{% block content %}
+    {% set js = 'plugin://game-night/assets/js/' %}
+    <div class="sa">
+        <div class="sa-bar">
+            <a class="sa-brand" href="#">{{ gn_lang == 'de' ? 'Spieleabend' : 'Game Night' }}</a>
+            <span id="whoami" class="whoami"></span>
+        </div>
+        {% if game_night.configured %}
+            <div id="app" class="app"
+                 data-api="{{ page.url ~ '/api' }}"
+                 data-lang="{{ gn_lang }}"
+                 data-lobby="{{ game_night.lobby ? '1' : '0' }}"
+                 data-contact="{{ game_night.contact }}"
+                 data-games="{{ game_night.games|join(',') }}"></div>
+        {% else %}
+            <p class="error">{{ gn_lang == 'de'
+                ? 'Diese Seite ist in der Konfiguration des Game-Night-Plugins (instances) nicht eingetragen.'
+                : 'This page is not listed in the Game Night plugin configuration (instances).' }}</p>
+        {% endif %}
+        <div id="toast" class="toast" hidden></div>
+    </div>
+
+    {% if game_night.configured %}
+        {% for file in game_night.scripts %}
+            <script src="{{ url(js ~ file)|e }}?v={{ version }}"></script>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

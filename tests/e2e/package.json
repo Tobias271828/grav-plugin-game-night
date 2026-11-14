@@ -1,0 +1,7 @@
+{
+  "name": "game-night-e2e",
+  "private": true,
+  "description": "Browser tests for Game Night (see README.md)",
+  "scripts": { "test": "node run.js" },
+  "devDependencies": { "puppeteer-core": "23.11.1" }
+}
