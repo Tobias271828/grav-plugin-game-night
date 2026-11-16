@@ -835,6 +835,11 @@ defineSuite('werbinich', async (browser, players) => {
     }
     await check(new Set(Object.values(targetOf)).size === 3 && Object.entries(targetOf).every(([a, b]) => a !== b),
         `everyone has a different target, nobody themselves (${JSON.stringify(targetOf)})`, players);
+    // Beispiel im Eingabefeld: eine Person aus der Liste, die bei Aktualisierungen stehen bleibt
+    const example = () => players[0].page.evaluate(() => document.getElementById('wb-term').placeholder);
+    const ex1 = await example();
+    await sleep(2500);   // mehrere Abfragen des Servers
+    await check(/^z\. B\. \S/.test(ex1) && ex1 === await example(), `example in the input stays the same (“${ex1}”)`, players.slice(0, 1));
 
     step('Carla switches to another person and back (“andere Person wählen”)');
     const first = targetOf.Carla;
@@ -1132,8 +1137,10 @@ async function germanLeaks(p) {
         // Tischnamen in der Liste sind Eingaben der Leute (evtl. deutsch) – nicht prüfen
         const own = new Set([...document.querySelectorAll('.room-list')].flatMap(e => e.innerText.split('\n').map(s => s.trim())));
         const lines = document.body.innerText.split('\n').map(s => s.trim()).filter(s => s && !own.has(s));
+        // Begriff-Feld bei „Wer bin ich?“: Der Name im Beispiel (z. B. Kurt Gödel) ist kein deutscher Text – nur „e.g.“ prüfen
         const attrs = [...document.querySelectorAll('[title],[placeholder],[aria-label]')]
-            .flatMap(e => ['title', 'placeholder', 'aria-label'].map(a => e.getAttribute(a)).filter(Boolean));
+            .flatMap(e => ['title', 'placeholder', 'aria-label'].map(a => e.getAttribute(a)).filter(Boolean)
+                .map(v => (e.id === 'wb-term' && v === e.getAttribute('placeholder') ? (v.startsWith('e.g. ') ? 'e.g.' : v) : v)));
         return [...lines, ...attrs].filter(s => re.test(s) && !/^Deutsch$/.test(s) && !/Tobias Schnieders/.test(s));
     }, GERMAN.source);
 }

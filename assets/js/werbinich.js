@@ -23,8 +23,23 @@
 
     let busy = false;
     // Eingabefeld für den eigenen Begriff: Text und „offen“ bleiben beim Neuaufbau erhalten
-    let draft = { key: '', text: '', open: false };
+    let draft = { key: '', text: '', open: false, example: '' };
     let held = false;   // Neuaufbau aufgeschoben, solange jemand tippt
+
+    // Beispiele im leeren Eingabefeld: berühmte Mathematiker*innen (je Eingabefeld zufällig eine);
+    // [deutsch, englisch], wo sich die Schreibweise unterscheidet
+    const EXAMPLES = ['Archimedes', ['Euklid', 'Euclid'], 'Hypatia', 'Pythagoras', ['Al-Chwarizmi', 'Al-Khwarizmi'],
+        'Fibonacci', 'René Descartes', 'Pierre de Fermat', 'Blaise Pascal', 'Isaac Newton', 'Gottfried Wilhelm Leibniz',
+        'Leonhard Euler', 'Joseph-Louis Lagrange', 'Pierre-Simon Laplace', 'Sophie Germain', ['Carl Friedrich Gauß', 'Carl Friedrich Gauss'],
+        'Augustin-Louis Cauchy', 'Niels Henrik Abel', 'Évariste Galois', 'Ada Lovelace', ['Karl Weierstraß', 'Karl Weierstrass'],
+        'Bernhard Riemann', 'Richard Dedekind', 'Georg Cantor', ['Sofja Kowalewskaja', 'Sofya Kovalevskaya'], 'Felix Klein',
+        'Henri Poincaré', 'David Hilbert', 'Emmy Noether', 'Srinivasa Ramanujan', 'Hermann Weyl', 'John von Neumann',
+        'Kurt Gödel', 'Alan Turing', 'Paul Erdős', 'Katherine Johnson', 'John Nash', 'Alexander Grothendieck',
+        'Andrew Wiles', 'Grigori Perelman', 'Maryam Mirzakhani', 'Terence Tao'];
+    const randomExample = () => {
+        const e = EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)];
+        return Array.isArray(e) ? t(e[0], e[1]) : e;
+    };
 
     const myPick = state => (state.picks || []).find(p => p.by === state.meSeat) || null;
     const pickFor = (state, target) => (state.picks || []).find(p => p.target === target) || null;
@@ -223,7 +238,7 @@
     function renderTermBox(ctx, pick, nameOf, doAction, choosing) {
         const { state, room } = ctx;
         const key = inputKey(state, pick);
-        if (draft.key !== room.id + ':' + key) draft = { key: room.id + ':' + key, text: pick.term || '', open: !pick.done };
+        if (draft.key !== room.id + ':' + key) draft = { key: room.id + ':' + key, text: pick.term || '', open: !pick.done, example: randomExample() };
         if (!pick.done) draft.open = true;
         const target = nameOf(pick.target);
 
@@ -258,7 +273,7 @@
         const input = h('input', {
             id: 'wb-term', class: 'wb-input', type: 'text', maxlength: MAX_TERM, value: draft.text, 'data-key': key,
             autocomplete: 'off', enterkeyhint: 'done', 'aria-label': t(`Begriff für ${target}`, `Term for ${target}`),
-            placeholder: t('z. B. Paul Erdős', 'e.g. Paul Erdős'),
+            placeholder: t('z. B. ', 'e.g. ') + draft.example,
             oninput: e => { draft.text = e.target.value; },
             onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); save(); } },
             // Wurde der Neuaufbau beim Tippen aufgeschoben, jetzt nachholen (kurz warten, damit ein Klick auf „Speichern“ ankommt)
