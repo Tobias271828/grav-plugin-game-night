@@ -28,13 +28,13 @@
 
     // Beispiele im leeren Eingabefeld: berühmte Mathematiker*innen (je Eingabefeld zufällig eine);
     // [deutsch, englisch], wo sich die Schreibweise unterscheidet
-    const EXAMPLES = ['Archimedes', ['Euklid', 'Euclid'], 'Hypatia', 'Pythagoras', ['Al-Chwarizmi', 'Al-Khwarizmi'],
-        'Fibonacci', 'René Descartes', 'Pierre de Fermat', 'Blaise Pascal', 'Isaac Newton', 'Gottfried Wilhelm Leibniz',
-        'Leonhard Euler', 'Joseph-Louis Lagrange', 'Pierre-Simon Laplace', 'Sophie Germain', ['Carl Friedrich Gauß', 'Carl Friedrich Gauss'],
-        'Augustin-Louis Cauchy', 'Niels Henrik Abel', 'Évariste Galois', 'Ada Lovelace', ['Karl Weierstraß', 'Karl Weierstrass'],
-        'Bernhard Riemann', 'Richard Dedekind', 'Georg Cantor', ['Sofja Kowalewskaja', 'Sofya Kovalevskaya'], 'Felix Klein',
-        'Henri Poincaré', 'David Hilbert', 'Emmy Noether', 'Srinivasa Ramanujan', 'Hermann Weyl', 'John von Neumann',
-        'Kurt Gödel', 'Alan Turing', 'Paul Erdős', 'Katherine Johnson', 'John Nash', 'Alexander Grothendieck',
+  const EXAMPLES = [['Euklid', 'Euclid'], 'Hypatia', 'Pythagoras', 'Fibonacci', 'Pierre de Fermat',
+        'Isaac Newton', 'Gottfried Wilhelm Leibniz', 'Leonhard Euler', 'Joseph-Louis Lagrange',
+        'Sophie Germain', ['Carl Friedrich Gauß', 'Carl Friedrich Gauss'],
+        'Augustin-Louis Cauchy', 'Niels Henrik Abel', 'Évariste Galois', 'Ada Lovelace',
+        'Bernhard Riemann', 'Georg Cantor', ['Sofja Kowalewskaja', 'Sofya Kovalevskaya'],
+        'David Hilbert', 'Emmy Noether', 'Srinivasa Ramanujan',
+        'Paul Erdős', 'Katherine Johnson', 'Alexander Grothendieck',
         'Andrew Wiles', 'Grigori Perelman', 'Maryam Mirzakhani', 'Terence Tao'];
     const randomExample = () => {
         const e = EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)];
