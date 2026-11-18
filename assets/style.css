@@ -351,8 +351,9 @@
 /* Mitspielende */
 .tb-players { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-box); overflow: hidden; background: var(--card); text-align: left; }
 .tb-player {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name backs" "bid bid";
-    align-items: center; gap: .1rem .75rem; padding: .4rem .8rem; border-top: 1px solid var(--line); position: relative;
+    /* eine Zeile: Name | letzte Ansage (bricht bei Bedarf um) | Karten */
+    display: grid; grid-template-columns: minmax(4.5rem, 1fr) minmax(0, auto) auto; grid-template-areas: "name bid backs";
+    align-items: center; gap: .1rem .6rem; padding: .4rem .8rem; border-top: 1px solid var(--line); position: relative;
 }
 .tb-player:first-child { border-top: 0; }
 .tb-player.active { background: #eaf6ea; box-shadow: inset 4px 0 0 #006400; }
@@ -364,7 +365,7 @@
 .tb-backs { grid-area: backs; display: inline-flex; align-items: center; gap: 2px; }
 .tb-player .tb-backs { margin-right: 2.4rem; }   /* Platz für das × */
 .tb-back { width: 10px; height: 15px; border-radius: 2px; background: repeating-linear-gradient(45deg, #1f5fae, #1f5fae 2px, #3c7fd0 2px, #3c7fd0 4px); }
-.tb-pbid { grid-area: bid; color: var(--muted); }
+.tb-pbid { grid-area: bid; color: var(--muted); text-align: right; line-height: 1.25; }
 .tb-pbid:empty { display: none; }
 /* × zum Entfernen: großzügige Tippfläche (40 × 40 px) */
 .tb-remove { position: absolute; right: 0; top: 0; font-size: 1.15rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
@@ -429,7 +430,7 @@
 }
 .wb-input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
 .wb-links { display: flex; flex-wrap: wrap; gap: .4rem 1rem; justify-content: center; margin-top: .5rem; }
-.tb-player.wb-row { padding-right: 2.8rem; grid-template-areas: "name bid"; }   /* Platz für das ×; Stand rechts neben dem Namen */
+.tb-player.wb-row { padding-right: 2.8rem; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name bid"; }   /* Platz für das ×; Stand rechts neben dem Namen */
 .tb-player.wb-row .tb-pbid { justify-self: end; text-align: right; }
 .tb-player.wb-done .tb-pbid { color: var(--good); }
 
