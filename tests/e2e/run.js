@@ -736,6 +736,24 @@ defineSuite('trombone', async (browser, players) => {
         return false;
     }
 
+    step('bids of this round: collapsed (last bids are in the player list), stay open once opened; bids start with a capital letter');
+    {
+        // „Ansagen dieser Runde“ (im Browser gesucht; eval verbietet die CSP der Seite)
+        const BOX = 'details.tb-history:not(.old):not(.tb-last)';
+        const first = await whoseTurn(players);
+        await makeBid(first);
+        const w = players.find(p => p !== first);
+        await w.waitFor(sel => current.room.state.bids.length === 1 && !!document.querySelector(sel), BOX);
+        const st = await w.page.evaluate(sel => ({ open: document.querySelector(sel).open, bid: document.querySelector('.tb-current .tb-bid').textContent }), BOX);
+        await check(!st.open, '“Ansagen dieser Runde” is collapsed', [w]);
+        await check(/^[A-ZÄÖÜ0-9]/.test(st.bid), `current bid starts with a capital letter (“${st.bid}”)`, [w]);
+        await w.page.evaluate(sel => document.querySelector(sel + ' summary').click(), BOX);
+        await makeBid(await whoseTurn(players));
+        await w.waitFor(() => current.room.state.bids.length === 2);
+        await sleep(300);
+        await check(await w.page.evaluate(sel => document.querySelector(sel).open, BOX), '“Ansagen dieser Runde” stays open after the next bid', [w]);
+    }
+
     step('round 1: two bids, Trombone!, reveal; everyone clicks “Nächste Runde” at the same time');
     let challenger = await playRound(players);
     await all(players, p => p.waitFor(() => current.room.state.phase === 'reveal' && !!document.querySelector('.tb-main .btn.primary')));

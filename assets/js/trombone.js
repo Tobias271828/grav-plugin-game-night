@@ -34,6 +34,7 @@
 
     const rankLabel = r => FACE[r] || String(r);
     // Deutscher Genitiv von Namen: „Annas“, aber „Tobias’“, „Max’“, „Fritz’“
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);   // „Ein König“ am Anfang
     const genitive = name => name + (/(s|ß|x|z|ce)$/i.test(name) ? '’' : 's');
     const ranksOf = deck => (deck === '32' ? [7, 8, 9, 10, 11, 12, 13, 14] : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 
@@ -85,6 +86,9 @@
     // lokaler Zustand des Gebots-Baukastens; wird bei jedem neuen Gebot zurückgesetzt
     let comp = { key: '', cat: null, a: null, b: null, busy: false };
     let addPanel = { open: false, seat: null, cards: null };   // „Person aufnehmen“
+    // Auf- und zugeklappte Verlaufs-Abschnitte bleiben so, wenn die Seite neu aufgebaut wird (z. B. nach jeder Ansage)
+    const openState = {};
+    const keepOpen = (name, byDefault = false) => ({ open: openState[name] ?? byDefault, ontoggle: e => { openState[name] = e.target.open; } });
 
     registerGame({
         id: 'trombone',
@@ -202,7 +206,7 @@
                 current = h('div', { class: 'tb-current' },
                     h('div', { class: 'tb-curline' },
                         h('span', { class: 'tb-label' }, t('Aktuelle Ansage', 'Current bid')),
-                        last ? [h('span', { class: 'tb-bid' }, bidPhrase(last.bid)), h('span', { class: 'small muted' }, t('von ', 'by ') + nameOf(last.seat))]
+                        last ? [h('span', { class: 'tb-bid' }, cap(bidPhrase(last.bid))), h('span', { class: 'small muted' }, t('von ', 'by ') + nameOf(last.seat))]
                              : h('span', { class: 'tb-bid muted' }, t('noch keine', 'none yet'))),
                     myCards);
                 if (!myCards) {
@@ -229,7 +233,7 @@
             const reveal = state.reveal ? renderReveal(state, state.reveal, nameOf, meSeat) : null;
             // Wer die Auflösung verpasst hat (jemand war mit „Nächste Runde“ schneller), kann sie hier nachsehen
             const lastReveal = state.phase === 'bidding' && state.lastReveal
-                ? h('details', { class: 'tb-history tb-last' },
+                ? h('details', { class: 'tb-history tb-last', ...keepOpen('last') },
                     h('summary', {}, t('Auflösung der vorigen Runde', 'Previous round’s reveal')),
                     renderReveal(state, state.lastReveal, nameOf, meSeat))
                 : null;
@@ -252,7 +256,7 @@
                         h('span', { class: 'small muted' }, ` ${p.cards}/${MAX_CARDS}`)),
                     h('span', { class: 'tb-pbid small' },
                         p.out ? t('raus', 'out') : p.joining ? t('steigt nächste Runde ein', 'joins next round')
-                            : lastBid && state.phase === 'bidding' ? bidPhrase(lastBid) : ''),
+                            : lastBid && state.phase === 'bidding' ? cap(bidPhrase(lastBid)) : ''),
                     meActive && !p.out && p.seat !== meSeat && state.phase !== 'over' ? h('button', {
                         class: 'link muted tb-remove', title: t('Aus dem Spiel nehmen (z. B. wenn jemand weg ist)', 'Remove from game (e.g. if someone left)'),
                         onclick: () => {
@@ -267,19 +271,21 @@
             }));
 
             // --- Gebote dieser Runde (und, ausgegraut, die vor dem Entfernen einer Person)
-            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, nameOf(b.seat) + ': '), bidPhrase(b.bid))));
+            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, nameOf(b.seat) + ': '), cap(bidPhrase(b.bid)))));
             const history = state.phase === 'bidding' && (state.bids.length || (state.prevBids || []).length)
                 ? [
-                    ...(state.prevBids || []).map(pb => h('details', { class: 'tb-history old', open: true },
+                    // nicht doppelt: diese Ansagen stehen nicht in der Liste der Mitspielenden → aufgeklappt
+                    ...(state.prevBids || []).map((pb, i) => h('details', { class: 'tb-history old', ...keepOpen('prev' + i, true) },
                         h('summary', {}, t(`Ansagen vor dem Entfernen von ${nameOf(pb.removed)}`, `Bids before ${nameOf(pb.removed)} was removed`)),
                         bidList(pb.bids))),
-                    state.bids.length ? h('details', { class: 'tb-history', open: true }, h('summary', {}, t('Ansagen dieser Runde', 'Bids this round')),
+                    // die jeweils letzte Ansage steht schon bei den Mitspielenden → zugeklappt
+                    state.bids.length ? h('details', { class: 'tb-history', ...keepOpen('bids') }, h('summary', {}, t('Ansagen dieser Runde', 'Bids this round')),
                         bidList(state.bids)) : null,
                 ]
                 : null;
 
             const rounds = state.history && state.history.length
-                ? h('details', { class: 'tb-history' }, h('summary', {}, t('Bisherige Runden', 'Previous rounds')),
+                ? h('details', { class: 'tb-history', ...keepOpen('rounds') }, h('summary', {}, t('Bisherige Runden', 'Previous rounds')),
                     h('ul', {}, state.history.map(r => h('li', {},
                         `${t('Runde', 'Round')} ${r.round}: ${nameOf(r.challenger)} → ${nameOf(r.challenged)} (${bidPhrase(r.bid)}) – `,
                         r.true ? t('stimmte', 'was true') : t('geblufft', 'was a bluff'),
@@ -495,7 +501,7 @@
             h('button', {
                 class: 'btn primary tb-big', disabled: !ready,
                 onclick: () => doAction('bid', { bid, deal: state.deal ?? 0 }),
-            }, ready ? t('Ansagen: ', 'Bid: ') + bidPhrase(bid) : t('Ansage wählen …', 'Choose your bid …')));
+            }, ready ? t('Ansagen: ', 'Bid: ') + cap(bidPhrase(bid)) : t('Ansage wählen …', 'Choose your bid …')));
     }
 
     // ------------------------------------------------------------------ Auflösung
@@ -518,7 +524,7 @@
 
         return h('div', { class: 'tb-reveal ' + (r.true ? 'true' : 'false') },
             h('div', {}, t(`${nameOf(r.challenger)} zweifelt an:`, `${nameOf(r.challenger)} challenges:`)),
-            h('div', { class: 'tb-bid' }, bidPhrase(bid), h('span', { class: 'small muted' }, t(' von ', ' by ') + nameOf(r.challenged))),
+            h('div', { class: 'tb-bid' }, cap(bidPhrase(bid)), h('span', { class: 'small muted' }, t(' von ', ' by ') + nameOf(r.challenged))),
             h('div', { class: 'tb-verdict' }, r.true ? t('Die Ansage stimmt!', 'The bid is true!') : t('Geblufft – die Ansage stimmt nicht!', 'Bluff – the bid is false!')),
             h('div', { class: 'tb-loser' }, loserMore),
             h('div', { class: 'tb-allhands' }, handsInOrder(state, r.hands).map(([seat, hand]) => h('div', { class: 'tb-onehand' + (+seat === meSeat ? ' me' : '') },
