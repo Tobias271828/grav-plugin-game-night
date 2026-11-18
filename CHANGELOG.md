@@ -7,7 +7,7 @@
     * Trombone: the playing order is drawn at random for every game
     * Who am I?: a random famous mathematician as example in the input field
 2. [](#improved)
-    * Zahlenkampf (work in progress) is only offered when it is listed in `games`
+    * Zahlenkampf (work in progress) is no longer offered until its rules are final
     * Trombone: bids without category (“Three kings”), the bids of the round are collapsed (everyone's last bid is in the player list), player list in one row, revealed hands in playing order
     * Opened history sections stay open when the page is redrawn
     * `blueprints.yaml`: compatibility with Grav 1.7 and 2.0, requires PHP 8.0

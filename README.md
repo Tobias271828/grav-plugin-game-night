@@ -9,7 +9,7 @@ accounts or third-party services. User interface in German and English.
 | **Who am I?** | 2–12 | Everyone gets a secret term from someone else and has to guess it |
 | **Four-player chess** (hand and brain) | 4 | Per team, one person picks the piece type, the other moves |
 | **Four in a Row** | 2 | Classic connection game |
-| **Zahlenkampf** | 2 | Work in progress – only offered when enabled explicitly (`games`) |
+| **Zahlenkampf** | 2 | Work in progress – not offered yet |
 
 Game Night comes in two flavours built from the same code:
 
@@ -70,7 +70,7 @@ visitors who may not see the page get no answer from `<route>/api` either.
 | `name` | – | Name of the data folder (required; `a-z`, `0-9`, `-`, `_`); changing it starts an empty instance |
 | `route` | – | Route of the instance's page (required); the API answers at `<route>/api` |
 | `lobby` | `true` | Show the list of all tables. `false`: tables only via link (64-bit IDs) |
-| `games` | all finished | Offered games: `trombone`, `werbinich`, `handbrain`, `connect4`; `zahlenkampf` (work in progress) only when listed |
+| `games` | all | Offered games: `trombone`, `werbinich`, `handbrain`, `connect4` |
 | `max_rooms` | `200` | Maximum number of tables at the same time |
 | `room_ttl_days` | `7` | Delete tables without activity after this many days |
 | `empty_room_ttl_hours` | `0` | Delete tables nobody sits at after this many hours (`0` = off) |

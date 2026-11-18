@@ -71,13 +71,12 @@ form:
           type: select
           multiple: true
           label: Games
-          help: 'Leave empty for all finished games (Zahlenkampf is still work in progress and only offered when selected).'
+          help: 'Leave empty for all games.'
           options:
             trombone: Trombone
             werbinich: Who am I?
             handbrain: Four-player chess
             connect4: Four in a Row
-            zahlenkampf: Zahlenkampf (work in progress)
           validate:
             type: array
         .contact_url:
