@@ -343,6 +343,26 @@ foreach ([['op' => 'bid', 'bid' => 'x'], ['op' => 'bid', 'bid' => ['t' => 99, 'a
     check($code >= 400 && $code < 500, 'Trombone: unsinnige Eingabe sauber abgelehnt ' . json_encode($bad), $code);
 }
 
+// Reihenfolge und Startspieler werden bei jedem Spiel neu ausgelost; wer vorne steht, beginnt
+[, $json] = api('open', ['action' => 'create', 'game' => 'trombone']);
+$to = $json['id'];
+$po = [token(), token(), token(), token()];
+foreach ([0, 1, 2, 3] as $i) {
+    api('open', ['action' => 'sit', 'room' => $to, 'seat' => $i, 'name' => "O$i", 'token' => $po[$i]]);
+}
+$orders = [];
+$startsFirst = true;
+for ($k = 0; $k < 12; $k++) {
+    [, $json] = api('open', ['action' => 'game', 'room' => $to, 'op' => 'start', 'players' => 4, 'token' => $po[0]]);
+    $st = $json['room']['state'] ?? [];
+    $order = array_column($st['players'] ?? [], 'seat');
+    $orders[implode(',', $order)] = true;
+    $startsFirst = $startsFirst && ($st['turn'][0] ?? null) === ($order[0] ?? -1);
+    api('open', ['action' => 'game', 'room' => $to, 'op' => 'lobby', 'token' => $po[0]]);
+}
+check(count($orders) > 1, 'Reihenfolge wird bei jedem Spiel neu gemischt', array_keys($orders));
+check($startsFirst, 'wer in der Reihenfolge vorne steht, beginnt');
+
 // Gebote gehören zu einer bestimmten Runde; Entfernen teilt nicht neu aus
 [, $json] = api('open', ['action' => 'create', 'game' => 'trombone']);
 $t3 = $json['id'];

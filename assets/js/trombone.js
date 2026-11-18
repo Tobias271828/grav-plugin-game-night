@@ -59,7 +59,6 @@
         if (need[1]) s += t(' und ', ' and ') + many(need[1], bid.b);
         return s;
     }
-    const bidText = bid => `${CATS[bid.t]}: ${bidPhrase(bid)}`;
 
     function cmp(x, y) {
         return (x.t - y.t) || (x.a - y.a) || ((x.b || 0) - (y.b || 0));
@@ -103,7 +102,7 @@
             Jokers are wild and count as any rank. Six of a kind can only be bid with 52 cards + 2 jokers.</p>
             <p><b>Cards:</b> in the first round everyone gets one card. Whoever loses a round gets one card more in all following rounds.
             Whoever already has six cards and loses a round loses the game.</p>
-            <p><b>Bidding:</b> the winner of the previous round starts (in the first round a random player). Going round in turn, everyone must bid
+            <p><b>Bidding:</b> the winner of the previous round starts (in the first round a random player). Going round in turn (the order is drawn at random when the game starts and shown in the list of players), everyone must bid
             something higher. You only see your own cards, but you bet on what is contained in <i>all cards dealt together</i>.
             Instead of bidding higher you can call <b>“Trombone!”</b> to challenge the previous bid. Then all cards are revealed:
             if the bid was wrong, the challenged player loses the round; otherwise the challenger loses.</p>
@@ -117,7 +116,7 @@
             Joker sind beliebig und zählen als jeder Rang. Ein Sechsling kann nur mit 52 Blatt + 2 Jokern geboten werden.</p>
             <p>In der ersten Runde erhält jede Person eine Karte. Wer eine Runde verliert, bekommt in allen folgenden Runden eine Karte mehr.
             Wer sechs Karten hat und eine Runde verliert, hat das Spiel verloren.</p>
-            <p><b>Bieten:</b> Die Runde beginnt, wer die vorige gewonnen hat (in der ersten Runde jemand Zufälliges). Reihum muss man immer
+            <p><b>Bieten:</b> Die Runde beginnt, wer die vorige gewonnen hat (in der ersten Runde jemand Zufälliges). Reihum (die Reihenfolge wird zu Spielbeginn ausgelost und steht in der Liste der Mitspielenden) muss man immer
             etwas Höheres bieten. Man sieht nur die eigenen Karten, wettet aber auf das, was in <i>allen ausgeteilten Karten zusammen</i> steckt.
             Statt zu erhöhen kann man <b>„Trombone!“</b> rufen und damit die vorige Ansage anzweifeln. Dann werden alle Karten aufgedeckt:
             War die Ansage falsch, verliert die angezweifelte Person die Runde, sonst die zweifelnde.</p>
@@ -203,7 +202,7 @@
                 current = h('div', { class: 'tb-current' },
                     h('div', { class: 'tb-curline' },
                         h('span', { class: 'tb-label' }, t('Aktuelle Ansage', 'Current bid')),
-                        last ? [h('span', { class: 'tb-bid' }, bidText(last.bid)), h('span', { class: 'small muted' }, t('von ', 'by ') + nameOf(last.seat))]
+                        last ? [h('span', { class: 'tb-bid' }, bidPhrase(last.bid)), h('span', { class: 'small muted' }, t('von ', 'by ') + nameOf(last.seat))]
                              : h('span', { class: 'tb-bid muted' }, t('noch keine', 'none yet'))),
                     myCards);
                 if (!myCards) {
@@ -268,7 +267,7 @@
             }));
 
             // --- Gebote dieser Runde (und, ausgegraut, die vor dem Entfernen einer Person)
-            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, nameOf(b.seat) + ': '), bidText(b.bid))));
+            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, nameOf(b.seat) + ': '), bidPhrase(b.bid))));
             const history = state.phase === 'bidding' && (state.bids.length || (state.prevBids || []).length)
                 ? [
                     ...(state.prevBids || []).map(pb => h('details', { class: 'tb-history old', open: true },
@@ -501,6 +500,12 @@
 
     // ------------------------------------------------------------------ Auflösung
 
+    /** Aufgedeckte Hände in der Spielreihenfolge (wie die Liste der Mitspielenden), nicht nach Sitzplatz */
+    function handsInOrder(state, hands) {
+        const order = (state.players || []).map(p => String(p.seat)).filter(seat => seat in hands);
+        return [...order, ...Object.keys(hands).filter(seat => !order.includes(seat))].map(seat => [seat, hands[seat]]);
+    }
+
     function renderReveal(state, r, nameOf, meSeat) {
         const bid = r.bid;
         const hitRanks = [bid.a, NEED[bid.t][1] ? bid.b : null];
@@ -513,10 +518,10 @@
 
         return h('div', { class: 'tb-reveal ' + (r.true ? 'true' : 'false') },
             h('div', {}, t(`${nameOf(r.challenger)} zweifelt an:`, `${nameOf(r.challenger)} challenges:`)),
-            h('div', { class: 'tb-bid' }, bidText(bid), h('span', { class: 'small muted' }, t(' von ', ' by ') + nameOf(r.challenged))),
+            h('div', { class: 'tb-bid' }, bidPhrase(bid), h('span', { class: 'small muted' }, t(' von ', ' by ') + nameOf(r.challenged))),
             h('div', { class: 'tb-verdict' }, r.true ? t('Die Ansage stimmt!', 'The bid is true!') : t('Geblufft – die Ansage stimmt nicht!', 'Bluff – the bid is false!')),
             h('div', { class: 'tb-loser' }, loserMore),
-            h('div', { class: 'tb-allhands' }, Object.entries(r.hands).map(([seat, hand]) => h('div', { class: 'tb-onehand' + (+seat === meSeat ? ' me' : '') },
+            h('div', { class: 'tb-allhands' }, handsInOrder(state, r.hands).map(([seat, hand]) => h('div', { class: 'tb-onehand' + (+seat === meSeat ? ' me' : '') },
                 h('span', { class: 'tb-pname small' }, nameOf(+seat)),
                 h('span', { class: 'tb-cards' }, sortHand(hand).map(c => cardEl(c, { small: true, hit: isHit(c) })))))),
         );

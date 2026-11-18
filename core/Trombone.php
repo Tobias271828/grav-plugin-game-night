@@ -245,8 +245,7 @@ function tb_check_proposal(array &$room): void
     }
     unset($p);
     if (!$found) {
-        $s['players'][] = $entry;
-        usort($s['players'], fn($x, $y) => $x['seat'] <=> $y['seat']);
+        $s['players'][] = $entry;   // reiht sich hinten in die Reihenfolge ein
     }
     // In der Auflösung beginnt gleich eine neue Runde → sofort dabei; sonst beim nächsten Austeilen
     $s['proposalResult'] = ['round' => $s['round'], 'name' => $seated['name'], 'accepted' => true, 'by' => null];
@@ -311,8 +310,10 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
             }
             $s = tb_init();
             $s['deck'] = $resolved;
+            // Reihenfolge bei jedem Spiel neu auslosen (nicht nach Sitzplätzen); wer vorne steht, beginnt
+            shuffle($seated);
             $s['players'] = $seated;
-            $s['starter'] = $seated[random_int(0, count($seated) - 1)]['seat'];
+            $s['starter'] = $seated[0]['seat'];
             tb_deal($s);
             return;
 
