@@ -93,7 +93,9 @@ async function startServer() {
     const config = {
         state_dir: `${tmpDir}/state`,
         instances: {
+            // a: alle Spiele (auch das Zahlenkampfspiel, das standardmäßig aus ist); b: Voreinstellung
             a: { ...common, lobby: true, data_dir: `${tmpDir}/a`, contact_url: 'mailto:test@example.org',
+                 games: ['trombone', 'werbinich', 'handbrain', 'connect4', 'zahlenkampf'],
                  footer_links: { de: { Impressum: 'https://example.org/impressum' }, en: { 'Legal notice': 'https://example.org/legal' } } },
             b: { ...common, lobby: false, data_dir: `${tmpDir}/b` },
         },
@@ -1113,6 +1115,8 @@ defineSuite('lobby-b', async (browser, players) => {
     await P.waitText('Deine Tische');
     await check(!(await P.hasText('Offene Tische')), 'no public table list in lobby=false mode', [P]);
     await check((await P.text('#app')).includes('Noch keine.'), '“Deine Tische” is empty at first', [P]);
+    const offered = await P.page.evaluate(() => [...document.querySelectorAll('.game-card .game-name')].map(e => e.firstChild.textContent.trim()));
+    await check(offered.length === 4 && !offered.includes('Zahlenkampfspiel'), `default: all finished games, no work in progress (${offered.join(', ')})`, [P]);
     await P.checkNoHScroll('lobby=false overview (mobile)');
     const url = await P.createTable('Trombone');
     const id = await P.roomId();

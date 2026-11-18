@@ -30,6 +30,7 @@ const MAX_STATE     = 200000;           // Bytes
 const MAX_BODY      = MAX_STATE + 20000;
 const GAMES         = ['connect4' => 2, 'handbrain' => 4, 'zahlenkampf' => 2, 'trombone' => 8, 'werbinich' => 12];
 const SERVER_GAMES  = ['trombone', 'werbinich'];   // Spiele mit Geheimnissen: Logik auf dem Server
+const WIP_GAMES     = ['zahlenkampf'];             // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
 
 /** Voreinstellungen einer Instanz (Schlüssel wie in der Konfiguration). */
 const DEFAULTS = [
@@ -41,7 +42,8 @@ const DEFAULTS = [
     'creates_per_hour'     => 30,      // neue Tische pro IP und Stunde; 0 = unbegrenzt
     'rooms_per_client'     => 20,      // gleichzeitig bestehende, heute angelegte Tische pro IP; 0 = unbegrenzt
     'contact_url'          => '',      // Link für Hinweise/Fehlermeldungen in der Übersicht
-    'games'                => [],      // angebotene Spiele (IDs aus GAMES); leer = alle
+    'games'                => [],      // angebotene Spiele (IDs aus GAMES); leer = alle außer WIP_GAMES
+    'proxy_ip_header'      => '',      // hinter einem Proxy: Kopfzeile mit der Besucheradresse, z. B. 'CF-Connecting-IP'
 ];
 
 require_once __DIR__ . '/Trombone.php';
@@ -68,7 +70,10 @@ function instance_config(array $raw, string $dataDir, string $stateDir): array
         'creates_per_hour'    => max(0, (int)$c['creates_per_hour']),
         'rooms_per_client'    => max(0, (int)$c['rooms_per_client']),
         'contact_url'         => is_string($c['contact_url']) ? $c['contact_url'] : '',
-        'games'               => array_values(array_intersect(array_keys(GAMES), array_filter((array)$c['games'], 'is_string'))) ?: array_keys(GAMES),
+        'games'               => array_values(array_intersect(array_keys(GAMES), array_filter((array)$c['games'], 'is_string')))
+                                 ?: array_values(array_diff(array_keys(GAMES), WIP_GAMES)),
+        // Adresse des Besuchers für die Anfragelimits: null = REMOTE_ADDR (der Grav-Adapter setzt Grav's Ermittlung ein)
+        'client_ip'           => is_string($c['proxy_ip_header']) && $c['proxy_ip_header'] !== '' ? forwarded_ip($c['proxy_ip_header']) : null,
         'id'                  => substr(hash('sha256', rtrim($dataDir, '/')), 0, 12),   // für Zählerdateien
     ];
 }

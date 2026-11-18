@@ -1,33 +1,39 @@
 enabled: true
 
-# Instanzen: Name => Einstellungen. Eigene Instanzen in user/config/plugins/game-night.yaml eintragen
-# (nicht hier, sonst gehen sie beim nächsten Plugin-Update verloren).
+# Instances, configured in the Admin (Plugins → Game Night) or in user/config/plugins/game-night.yaml
+# (not here, otherwise they are lost with the next plugin update).
 #
-# Jede Instanz braucht eine Seite mit dem Template „game-night“ unter genau dieser Route.
-# Die Tische liegen in user/data/game-night/<name>/, die API ist unter <route>/api erreichbar.
+# Every instance needs a page with the template "game-night" at exactly its route.
+# Its tables are stored in user/data/game-night/<name>/, the API answers at <route>/api.
 #
-# Einstellungen (alle außer „route“ optional, hier mit ihren Voreinstellungen):
-#   route: /meine-spiele        # Pflicht
-#   lobby: true                 # Liste aller Tische zeigen; false = Tische nur per Link erreichbar
-#   max_rooms: 200              # höchstens so viele Tische gleichzeitig
-#   room_ttl_days: 7            # Tische ohne Aktivität nach so vielen Tagen löschen
-#   empty_room_ttl_hours: 0     # Tische, an denen niemand sitzt, schon nach so vielen Stunden löschen (0 = aus)
-#   requests_per_minute: 1200   # Anfragen pro IP und Minute (0 = unbegrenzt); jede offene Seite fragt 1×/s
-#   creates_per_hour: 30        # neue Tische pro IP und Stunde (0 = unbegrenzt)
-#   rooms_per_client: 20        # gleichzeitig bestehende Tische pro IP (zählt je Kalendertag; 0 = unbegrenzt)
-#   contact_url: ''             # Link für Hinweise/Fehlermeldungen in der Übersicht (leer = keiner)
-#   games: []                   # angebotene Spiele (leer = alle): trombone, werbinich, handbrain,
-#                               # connect4 (Vier in einer Reihe), zahlenkampf
+# Settings (all but "name" and "route" optional, shown with their defaults):
+#   - name: friends              # required: data folder (a-z, 0-9, - and _); changing it starts empty
+#     route: /my-games           # required: route of the instance's page
+#     lobby: true                # show the list of all tables; false = tables only reachable via their link
+#     max_rooms: 200             # at most this many tables at the same time
+#     room_ttl_days: 7           # delete tables without activity after this many days
+#     empty_room_ttl_hours: 0    # delete tables nobody sits at after this many hours (0 = off)
+#     requests_per_minute: 1200  # requests per IP address and minute (0 = unlimited); every open page asks 1×/s
+#     creates_per_hour: 30       # new tables per IP address and hour (0 = unlimited)
+#     rooms_per_client: 20       # existing tables per IP address (counted per calendar day; 0 = unlimited)
+#     contact_url: ''            # link for feedback shown on the overview page (empty = none)
+#     games: []                  # offered games (empty = all finished ones): trombone, werbinich (Who am I?),
+#                                # handbrain (four-player chess), connect4 (Four in a Row),
+#                                # zahlenkampf (work in progress, only offered when listed here)
 #
-# Beispiel:
+# Behind a reverse proxy (e.g. Cloudflare): on Grav 2 the limits use the visitor address that Grav determines –
+# enable the matching header in system.yaml → http_x_forwarded (e.g. cf_connecting_ip: true). On Grav 1.7 (which
+# trusts X-Forwarded-For by default) set per instance:
+#     proxy_ip_header: ''        # header YOUR proxy sets, e.g. CF-Connecting-IP (X-Forwarded-For: last entry)
+#
+# Example (the older form "instances: { friends: { route: … } }" keyed by name works as well):
 #   instances:
-#     freunde:
-#       route: /spieleabend-x7k2q9
-#     offen:
-#       route: /spiele
+#     - name: friends
+#       route: /game-night-x7k2q9
+#     - name: public
+#       route: /games
 #       lobby: false
 #       empty_room_ttl_hours: 1
 #       requests_per_minute: 600
 #       creates_per_hour: 10
-#       games: [trombone, werbinich, handbrain, connect4]
-instances: {}
+instances: []

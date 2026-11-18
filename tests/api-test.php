@@ -551,7 +551,25 @@ sort($left);
 check($left === ['aaaaaa02', 'aaaaaa03'], 'Aufräumen nach empty_room_ttl und room_ttl', $left);
 
 $c = GameNight\instance_config(['games' => ['quatsch'], 'max_rooms' => -5, 'requests_per_minute' => -1, 'unbekannt' => 1], "$dir/x", $dir);
-check($c['games'] === array_keys(GameNight\GAMES), 'unbekannte Spiele → alle Spiele');
+check($c['games'] === array_values(array_diff(array_keys(GameNight\GAMES), GameNight\WIP_GAMES)), 'unbekannte Spiele → alle fertigen Spiele', $c['games']);
+check(!in_array('zahlenkampf', GameNight\instance_config([], "$dir/x", $dir)['games'], true), 'Spiele in Arbeit sind standardmäßig aus');
+check(in_array('zahlenkampf', GameNight\instance_config(['games' => ['zahlenkampf']], "$dir/x", $dir)['games'], true), '… lassen sich aber ausdrücklich einschalten');
+
+// Besucheradresse hinter einem Proxy (nur mit proxy_ip_header; bei Listen zählt der letzte, vom Proxy angehängte Eintrag)
+$_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.7, 203.0.113.5';
+$_SERVER['HTTP_CF_CONNECTING_IP'] = '192.0.2.44';
+check(GameNight\instance_config([], "$dir/x", $dir)['client_ip'] === null, 'ohne proxy_ip_header: Kopfzeilen werden ignoriert (REMOTE_ADDR)');
+check(GameNight\instance_config(['proxy_ip_header' => 'X-Forwarded-For'], "$dir/x", $dir)['client_ip'] === '203.0.113.5', 'X-Forwarded-For: letzter Eintrag');
+check(GameNight\instance_config(['proxy_ip_header' => 'CF-Connecting-IP'], "$dir/x", $dir)['client_ip'] === '192.0.2.44', 'CF-Connecting-IP');
+$_SERVER['HTTP_CF_CONNECTING_IP'] = 'kein-ip';
+check(GameNight\instance_config(['proxy_ip_header' => 'CF-Connecting-IP'], "$dir/x", $dir)['client_ip'] === null, 'ungültige Adresse in der Kopfzeile → REMOTE_ADDR');
+GameNight\cfg(['client_ip' => '203.0.113.5'] + GameNight\cfg());
+$kProxy = GameNight\client_key();
+$_SERVER['REMOTE_ADDR'] = '10.0.0.2';   // anderer Proxy-Knoten, gleiche Besucheradresse
+check(GameNight\client_key() === $kProxy, 'Anfragelimits zählen die Besucheradresse, nicht die des Proxys');
+GameNight\cfg(['client_ip' => null] + GameNight\cfg());
+unset($_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_CF_CONNECTING_IP']);
 check($c['max_rooms'] === 1 && $c['requests_per_minute'] === 0, 'negative Werte werden begrenzt', $c);
 check(!array_key_exists('unbekannt', $c), 'unbekannte Einstellungen werden ignoriert');
 

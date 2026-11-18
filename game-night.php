@@ -24,14 +24,23 @@ class GameNightPlugin extends Plugin
         ];
     }
 
-    /** Alle gültigen Instanzen: Name => Einstellungen (mit 'route'). */
+    /**
+     * Alle gültigen Instanzen: Name => Einstellungen (mit 'route'). In der Konfiguration entweder als
+     * Liste mit 'name' (so speichert Admin2) oder als Zuordnung Name => Einstellungen (ältere Schreibweise;
+     * das klassische Admin behält solche Schlüssel und ergänzt 'name').
+     */
     protected function instances(): array
     {
         $instances = (array)$this->config->get('plugins.game-night.instances', []);
         $valid = [];
-        foreach ($instances as $name => $settings) {
+        foreach ($instances as $key => $settings) {
+            if (!is_array($settings)) {
+                continue;
+            }
+            // Name aus dem Feld 'name' (Admin), sonst aus dem Schlüssel (ältere Schreibweise Name => Einstellungen)
+            $name = is_string($settings['name'] ?? null) && $settings['name'] !== '' ? $settings['name'] : (is_int($key) ? '' : (string)$key);
             $route = rtrim((string)($settings['route'] ?? ''), '/');
-            if (is_array($settings) && preg_match('/^[a-z0-9_-]{1,40}$/', (string)$name) && $route !== '') {
+            if (preg_match('/^[a-z0-9_-]{1,40}$/', $name) && $route !== '' && !isset($valid[$name])) {
                 $valid[$name] = ['route' => $route] + $settings;
             }
         }
@@ -99,7 +108,14 @@ class GameNightPlugin extends Plugin
     {
         $base = $this->grav['locator']->findResource('user-data://', true) . '/game-night';
         $this->loadCore();
-        \GameNight\run(\GameNight\instance_config($settings, "$base/$name", "$base/.state"));
+        $config = \GameNight\instance_config($settings, "$base/$name", "$base/.state");
+        // Besucheradresse wie Grav sie ermittelt (folgt system.http_x_forwarded, z. B. hinter Cloudflare) –
+        // aber erst ab Grav 2: Grav 1.7 vertraut X-Forwarded-For standardmäßig, damit könnte jeder Besucher
+        // die Anfragelimits umgehen. Dort gilt REMOTE_ADDR bzw. die Instanz-Einstellung proxy_ip_header.
+        if (version_compare(GRAV_VERSION, '2.0', '>=')) {
+            $config['client_ip'] ??= $this->grav['uri']->ip();
+        }
+        \GameNight\run($config);
     }
 
     public function onTwigTemplatePaths(): void

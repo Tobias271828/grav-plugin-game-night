@@ -60,9 +60,28 @@ function pseudonym(string $what): string
 }
 
 /** Adresse des Absenders als Binärwert; IPv4 in IPv6-Schreibweise (::ffff:1.2.3.4) als IPv4. */
+/** Adresse des Besuchers: aus der Konfiguration (Proxy, Grav), sonst die Gegenstelle der Verbindung. */
+function request_ip(): string
+{
+    return (string)(cfg()['client_ip'] ?? $_SERVER['REMOTE_ADDR'] ?? '');
+}
+
+/**
+ * Hinter einem eigenen Proxy (z. B. Cloudflare, nginx): Besucheradresse aus der Kopfzeile, die der Proxy setzt.
+ * Bei einer Liste (X-Forwarded-For) zählt der letzte Eintrag – den hängt der eigene Proxy an; frühere Einträge
+ * kann der Besucher selbst mitschicken. Ohne gültige Adresse: null (dann gilt REMOTE_ADDR).
+ */
+function forwarded_ip(string $header): ?string
+{
+    $value = $_SERVER['HTTP_' . strtoupper(str_replace('-', '_', trim($header)))] ?? '';
+    $parts = array_map('trim', explode(',', is_string($value) ? $value : ''));
+    $ip = (string)end($parts);
+    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : null;
+}
+
 function client_ip(): ?string
 {
-    $bin = @inet_pton((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    $bin = @inet_pton(request_ip());
     if ($bin === false) {
         return null;
     }
@@ -77,7 +96,7 @@ function client_key(): string
 {
     $bin = client_ip();
     if ($bin === null) {
-        return pseudonym((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return pseudonym(request_ip());
     }
     return pseudonym(strlen($bin) === 16 ? bin2hex(substr($bin, 0, 8)) . '::/64' : inet_ntop($bin));
 }

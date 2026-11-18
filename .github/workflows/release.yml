@@ -39,15 +39,32 @@ jobs:
       - name: Pakete bauen
         run: php build.php
 
-      - name: Release veröffentlichen
+      - name: Release-Text aus dem CHANGELOG
+        run: awk -v v="# v${GITHUB_REF_NAME}" '$0 == v {on=1; next} /^# v/ {on=0} on' CHANGELOG.md > notes.md
+
+      # Am Plugin-Release hängt nur das Grav-Paket: GPM installiert die letzte ZIP-Datei eines Releases
+      - name: Grav-Release veröffentlichen
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Abschnitt dieser Version aus dem CHANGELOG als Release-Text
-          awk -v v="# v${GITHUB_REF_NAME}" '$0 == v {on=1; next} /^# v/ {on=0} on' CHANGELOG.md > notes.md
-          # Wiederholter Lauf nach einem halben Release: Dateien nur ersetzen
+          ZIP="dist/game-night-grav-${GITHUB_REF_NAME}.zip"
+          # Wiederholter Lauf nach einem halben Release: Datei nur ersetzen
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
+            gh release upload "${GITHUB_REF_NAME}" "$ZIP" --clobber
           else
-            gh release create "${GITHUB_REF_NAME}" dist/*.zip --title "${GITHUB_REF_NAME}" --notes-file notes.md
+            gh release create "${GITHUB_REF_NAME}" "$ZIP" --title "${GITHUB_REF_NAME}" --notes-file notes.md
+          fi
+
+      # Standalone-Paket: Release gleicher Version im eigenen Repository (braucht das Secret STANDALONE_TOKEN)
+      - name: Standalone-Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.STANDALONE_TOKEN }}
+          REPO: ${{ github.repository_owner }}/game-night-standalone
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "Secret STANDALONE_TOKEN fehlt"; exit 1; fi
+          ZIP="dist/game-night-standalone-${GITHUB_REF_NAME}.zip"
+          if gh release view "${GITHUB_REF_NAME}" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "$ZIP" --repo "$REPO" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "$ZIP" --repo "$REPO" --title "${GITHUB_REF_NAME}" --notes-file notes.md
           fi

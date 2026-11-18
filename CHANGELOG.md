@@ -1,3 +1,21 @@
+# v1.1.0
+## 2026-11-18
+
+1. [](#new)
+    * Instances can be edited in the Admin (Admin and Admin2). In the configuration they are now a list with `name`; the older form keyed by name keeps working
+    * Behind a reverse proxy, the rate limits use the visitor's address: on Grav 2 as Grav determines it (`system.http_x_forwarded`), on Grav 1.7 and in the standalone version via the new option `proxy_ip_header`
+    * Trombone: the playing order is drawn at random for every game
+    * Who am I?: a random famous mathematician as example in the input field
+2. [](#improved)
+    * Zahlenkampf (work in progress) is only offered when it is listed in `games`
+    * Trombone: bids without category (“Three kings”), the bids of the round are collapsed (everyone's last bid is in the player list), player list in one row, revealed hands in playing order
+    * Opened history sections stay open when the page is redrawn
+    * `blueprints.yaml`: compatibility with Grav 1.7 and 2.0, requires PHP 8.0
+    * Configuration comments in English; README notes on proxies and on who may free seats and delete tables
+    * Releases here only carry the Grav package (GPM installs the last ZIP of a release); the standalone package is published in [game-night-standalone](https://github.com/Tobias271828/game-night-standalone/releases)
+3. [](#bugfix)
+    * Changing your name during a running Trombone or Who am I? game now also updates it in the game
+
 # v1.0.0
 ## 11/14/2026
 

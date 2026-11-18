@@ -1,7 +1,7 @@
 name: Game Night
 slug: game-night
 type: plugin
-version: 1.0.0
+version: 1.1.0
 description: Browser games for game nights with friends (Trombone, Four in a Row, four-player chess, Who am I?, …). Several independent instances per site – private or public. No database, no accounts.
 icon: gamepad
 author:
@@ -12,8 +12,13 @@ keywords: games, game night, multiplayer, chess, party, board games
 bugs: https://github.com/Tobias271828/grav-plugin-game-night/issues
 docs: https://github.com/Tobias271828/grav-plugin-game-night/blob/main/README.md
 license: MIT
+
+compatibility:
+  grav: ['1.7', '2.0']
+
 dependencies:
   - { name: grav, version: '>=1.7.0' }
+  - { name: php, version: '>=8.0' }
 
 form:
   validation: loose
@@ -28,8 +33,86 @@ form:
         0: Disabled
       validate:
         type: bool
-    instances_note:
-      type: display
+
+    instances:
+      type: list
       label: Instances
-      markdown: true
-      content: 'Instances are configured in `user/config/plugins/game-night.yaml` under `instances` (see `game-night.yaml` in the plugin folder for all options).'
+      help: 'Each instance needs a page with the template “game-night” at exactly its route. Tables are stored in user/data/game-night/<name>/.'
+      btnLabel: Add instance
+      collapsed: true
+      style: vertical
+      fields:
+        .name:
+          type: text
+          label: Name
+          help: 'Name of the data folder (a–z, 0–9, - and _). Changing it later starts with an empty instance.'
+          validate:
+            required: true
+            pattern: '[a-z0-9_-]{1,40}'
+        .route:
+          type: text
+          label: Route
+          placeholder: /game-night
+          help: 'Route of the page with the template “game-night”; the API answers at <route>/api. A hard-to-guess route makes a hidden instance.'
+          validate:
+            required: true
+        .lobby:
+          type: toggle
+          label: Table list
+          help: 'Show the list of all tables. Off: tables are only reachable via their link – recommended for public instances.'
+          highlight: 1
+          default: 1
+          options:
+            1: Shown
+            0: Hidden
+          validate:
+            type: bool
+        .games:
+          type: select
+          multiple: true
+          label: Games
+          help: 'Leave empty for all finished games (Zahlenkampf is still work in progress and only offered when selected).'
+          options:
+            trombone: Trombone
+            werbinich: Who am I?
+            handbrain: Four-player chess
+            connect4: Four in a Row
+            zahlenkampf: Zahlenkampf (work in progress)
+          validate:
+            type: array
+        .contact_url:
+          type: text
+          label: Contact link
+          help: 'Link for feedback shown on the overview page (optional).'
+        .max_rooms:
+          type: number
+          label: Maximum number of tables
+          default: 200
+          validate:
+            min: 1
+        .room_ttl_days:
+          type: number
+          label: Delete idle tables after (days)
+          default: 7
+        .empty_room_ttl_hours:
+          type: number
+          label: Delete tables nobody sits at after (hours, 0 = off)
+          default: 0
+        .requests_per_minute:
+          type: number
+          label: Requests per IP address and minute (0 = unlimited)
+          help: 'Every open page asks about once per second.'
+          default: 1200
+        .creates_per_hour:
+          type: number
+          label: New tables per IP address and hour (0 = unlimited)
+          default: 30
+        .rooms_per_client:
+          type: number
+          label: Existing tables per IP address (0 = unlimited)
+          default: 20
+        .proxy_ip_header:
+          type: text
+          label: Proxy header with the visitor address (Grav 1.7 only)
+          placeholder: CF-Connecting-IP
+          help: 'Grav 2 follows system.yaml → http_x_forwarded. On Grav 1.7 behind a reverse proxy, name the header your proxy sets (e.g. CF-Connecting-IP; for X-Forwarded-For the last entry is used). Leave empty unless every request goes through that proxy.'
