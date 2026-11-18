@@ -95,7 +95,7 @@ async function startServer() {
         instances: {
             // a: alle Spiele (auch das Zahlenkampfspiel, das standardmäßig aus ist); b: Voreinstellung
             a: { ...common, lobby: true, data_dir: `${tmpDir}/a`, contact_url: 'mailto:test@example.org',
-                 games: ['trombone', 'werbinich', 'handbrain', 'connect4', 'zahlenkampf'],
+                 games: ['trombone', 'werbinich', 'handbrain', 'connect4', 'zahlenkampf', 'konferenz'],
                  footer_links: { de: { Impressum: 'https://example.org/impressum' }, en: { 'Legal notice': 'https://example.org/legal' } } },
             b: { ...common, lobby: false, data_dir: `${tmpDir}/b` },
         },
@@ -942,6 +942,126 @@ defineSuite('werbinich', async (browser, players) => {
 
 // --- Grenzfälle: lange Namen/Begriffe auf dem Handy, Umbenennen, Aufstehen, Zuschauen --------
 
+// --- Mathekonferenz ---------------------------------------------------------------------
+
+defineSuite('konferenz', async (browser, players) => {
+    const names = ['Ada', 'Bernd', 'Carla', 'Dieter', 'Emmy', 'Felix'];
+    for (const [i, n] of names.entries()) players.push(await Player.create(browser, n, { mobile: i < 2 }));
+    const [A] = players;
+
+    await A.goto(`${BASE}/a/`);
+    const url = await A.createTable('Mathekonferenz');
+    await A.waitText('Wer kommt zur Konferenz?');
+    for (const p of players.slice(1)) {
+        await p.goto(url);
+        await p.click('.tb .btn.primary', 'Mitspielen');
+        await p.waitText('(du)');
+    }
+    await A.waitText('Felix');
+    step('role setup: suggestion for 6 players, roles can be changed');
+    const chips = await A.page.evaluate(() => [...document.querySelectorAll('.kf-roles .tb-chip.on')].map(e => e.textContent));
+    await check(chips.length === 5, `5 special roles suggested for 6 players (${chips.join(', ')})`, [A]);
+    await A.click('.kf-roles .tb-chip.on', 'Hausmeister');   // abwählen → dafür eine Mathematiker*in
+    await A.waitText('Dazu 1 Mathematiker*in');
+    await A.click('.kf-roles .tb-chip', 'Physiker');
+    await A.waitFor(() => !!document.querySelector('.kf-roles .tb-chip.on') && [...document.querySelectorAll('.kf-roles .tb-chip.on')].some(e => e.textContent.includes('Physiker')));
+    await A.checkNoHScroll('konferenz setup (mobile)');
+    await A.click('.tb .btn.primary', 'Konferenz eröffnen (6 Personen)');
+    await all(players, p => p.waitText('Deine Rolle'));
+    await A.checkNoHScroll('konferenz night (mobile)');
+    await snap(players.slice(0, 2), 'kf-night1');
+
+    // Was sieht wer? Eigene Rolle, Mitkonstruktivist*innen – sonst keine Rollen Lebender
+    for (const p of players) {
+        const st = await p.page.evaluate(() => current.room.state);
+        const mine = st.me.konstr;
+        const seen = st.players.filter(x => x.alive && x.role && x.seat !== st.me.seat && !(mine && x.konstr));
+        await check(!seen.length, `${p.name} sees only allowed roles`, [p]);
+    }
+
+    step('play the conference through the buttons until someone wins');
+    const rowButton = async (p, name, label) => p.clickFn((n, l) => {
+        const row = [...document.querySelectorAll('.kf-row')].find(r => r.querySelector('.kf-name').firstChild.textContent === n);
+        return row && [...row.querySelectorAll('.kf-act button')].find(b => b.textContent.includes(l) && !b.disabled) || null;
+    }, `${label} at ${name}`, {}, name, label);
+    let rounds = 0;
+    for (let step_ = 0; step_ < 200; step_++) {
+        // Jeder Browser fragt etwa 1×/s nach: erst entscheiden, wenn alle denselben Stand haben
+        const deadline = Date.now() + TIMEOUT;
+        let states;
+        for (;;) {
+            const vs = await Promise.all(players.map(p => p.page.evaluate(() => ({ v: current.room.version, s: current.room.state }))));
+            if (vs.every(x => x.v === vs[0].v)) { states = vs.map(x => x.s); break; }
+            if (Date.now() > deadline) throw new Error('browsers do not agree on the game state');
+            await sleep(200);
+        }
+        const st = states[0];
+        if (st.phase === 'over') break;
+        rounds = st.round;
+        const alive = st.players.filter(x => x.alive);
+        let acted = false;
+        for (const [i, p] of players.entries()) {
+            const me = states[i].me;
+            if (st.phase === 'night' && me.alive && me.tasks.length) {
+                const task = me.tasks[0];
+                const others = states[i].players.filter(x => x.alive && x.seat !== me.seat);
+                if (task === 'konstr') {
+                    const target = others.find(x => !x.konstr);
+                    await rowButton(p, target.name, 'vorschlagen');
+                    await rowButton(p, target.name, 'auswählen');
+                } else if (task === 'betreuer') {
+                    await rowButton(p, alive[0].name, 'Koautor');
+                    await rowButton(p, alive[1].name, 'Koautor');
+                    await p.click('.kf-task .btn.primary', 'verbinden');
+                } else if (task === 'ki') {
+                    await p.click('.kf-task .btn.primary', 'Fertig für diese Nacht');
+                } else if (task === 'numerik') {
+                    await rowButton(p, others.find(x => x.seat !== me.protectLast).name, 'nachrechnen');
+                } else {
+                    const label = { lean: 'formalisieren', reviewer: 'markieren', doktorand: 'Vorbild' }[task];
+                    await rowButton(p, others[0].name, label);
+                }
+                acted = true;
+                break;
+            }
+            if (st.phase === 'day' && me.alive && !(me.seat in st.votes)) {
+                // alle stimmen gegen die erste verbliebene Person (die selbst: „Niemanden“)
+                const target = alive[0];
+                if (target.seat === me.seat) await p.click('.kf-task .btn', 'Niemanden');
+                else await rowButton(p, target.name, 'Stimme');
+                acted = true;
+                break;
+            }
+            if (st.phase === 'shot' && st.shooter === me.seat) {
+                await rowButton(p, alive.find(x => x.seat !== me.seat).name, 'mitreißen');
+                acted = true;
+                break;
+            }
+        }
+        if (!acted) throw new Error(`nobody can act in phase ${st.phase}`);
+        await sleep(300);
+        if (st.phase === 'night' && step_ === 0) await snap(players.slice(0, 2), 'kf-task');
+    }
+    await all(players, p => p.waitFor(() => current.room.state.phase === 'over'));
+    const final = await A.page.evaluate(() => ({ text: document.querySelector('.tb-status').textContent, roles: current.room.state.players.filter(p => p.role).length }));
+    await check(/gewinn|niemand/i.test(final.text), `game over with a result: “${final.text}” after ${rounds} round(s)`, [A]);
+    await check(final.roles === 6, 'all roles revealed at the end', [A]);
+    await A.checkNoHScroll('konferenz over (mobile)');
+    await snap(players.slice(0, 2), 'kf-over');
+
+    step('new game, then leaving the conference early');
+    await A.click('.tb-extras .btn.primary', 'Neues Spiel');
+    await all(players, p => p.waitText('Wer kommt zur Konferenz?'));
+    await A.click('.tb .btn.primary', 'Konferenz eröffnen (6 Personen)');
+    await all(players, p => p.waitText('Deine Rolle'));
+    const leaver = players[5];
+    leaver.confirmAnswer = true;
+    await leaver.click('.tb-extras .link', 'Konferenz verlassen');
+    await all(players.slice(0, 5), p => p.waitText('Felix verlässt die Konferenz vorzeitig'));
+    const box = await leaver.text('.kf-me');
+    await check(box.toLowerCase().includes('du hast die konferenz verlassen'), `whoever leaves sees it in their role box (“${box.slice(0, 80)}”)`, [leaver]);
+});
+
 defineSuite('edge', async (browser, players) => {
     const LONG = 'Maximiliankonstantinusxy';   // 24 Zeichen = Höchstlänge, ohne Umbruchmöglichkeit
     const A = await Player.create(browser, LONG, { mobile: true });
@@ -1201,7 +1321,8 @@ defineSuite('english', async (browser, players) => {
     await snap([E], 'en-lobby');
     await E.checkNoHScroll('overview en (mobile)');
 
-    const games = { connect4: 'Four in a Row', handbrain: 'Chess for four', zahlenkampf: 'Rithmomachia', trombone: 'Trombone', werbinich: 'Who am I?' };
+    const games = { connect4: 'Four in a Row', handbrain: 'Chess for four', zahlenkampf: 'Rithmomachia', trombone: 'Trombone', werbinich: 'Who am I?',
+                    konferenz: 'Maths conference' };
     const urls = {};
     for (const [id, name] of Object.entries(games)) {
         await E.goto(`${BASE}/a/?lang=en`);
@@ -1223,6 +1344,25 @@ defineSuite('english', async (browser, players) => {
     await F.click('.controls .btn', 'Resign');
     await all(players, p => p.waitText('resigns'));
     await leaks(E, 'connect4 over');
+
+    step('maths conference in English: setup and first night with four players');
+    const Gw = await Player.create(browser, 'Gwen', { lang: 'en' });
+    const Hu = await Player.create(browser, 'Hugo', { lang: 'en', mobile: true });
+    for (const p of [F, Gw, Hu]) {
+        await p.goto(urls.konferenz);
+        await p.click('.tb .btn.primary', 'Join');
+        await p.waitText('(you)');
+    }
+    await E.goto(urls.konferenz);
+    await E.waitText('Hugo');
+    await leaks(E, 'maths conference setup');
+    await E.click('.tb .btn.primary', 'Open the conference (4 players)');
+    await all([E, F, Gw, Hu], p => p.waitText('Your role'));
+    for (const p of [E, F, Gw, Hu]) await leaks(p, 'maths conference night');
+    await Hu.checkNoHScroll('maths conference night en (mobile)');
+    await checkErrors([Gw, Hu]);   // nur hier dabei
+    await Gw.close();
+    await Hu.close();
 
     step('trombone in English: start and bid');
     await E.goto(urls.trombone);

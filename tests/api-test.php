@@ -52,6 +52,7 @@ $instances = [
     'limited'  => ['requests_per_minute' => 5],
     'creates'  => ['creates_per_hour' => 2],
     'percl'    => ['rooms_per_client' => 2, 'creates_per_hour' => 0],
+    'party'    => ['games' => ['konferenz'], 'requests_per_minute' => 0, 'creates_per_hour' => 0, 'rooms_per_client' => 0],
 ];
 foreach ($instances as $name => &$settings) {
     $settings['data_dir'] = "$tmp/data/$name";
@@ -611,6 +612,8 @@ check($allowed === GameNight\NEW_CLIENTS_PER_NETWORK, 'pro /48-Netz höchstens 2
 check($created <= GameNight\NEW_CLIENTS_PER_NETWORK + 3, 'Zahl der Zählerdateien bleibt begrenzt', $created);
 $_SERVER['REMOTE_ADDR'] = '2001:db8:bbbb::1';
 check(GameNight\rate_limit('req', GameNight\client_key(), 100, 60), 'anderes /48-Netz ist nicht betroffen');
+
+require __DIR__ . '/konferenz-test.php';
 
 // ---------------------------------------------------------------------------
 // Meldungen beim Start von PHP („in Unknown on line 0“, z. B. zu Erweiterungen) kommen von der Umgebung, nicht vom Plugin

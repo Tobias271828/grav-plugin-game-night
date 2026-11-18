@@ -435,6 +435,32 @@
 .tb-player.wb-done .tb-pbid { color: var(--good); }
 
 /* ======================================================================
+   Mathekonferenz (nutzt die Bausteine von Trombone: .tb, .tb-players, .tb-chip …)
+   ====================================================================== */
+/* Personenliste: Name und Infos links, Knopf für die eigene Aktion rechts */
+.kf-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name act" "info act";
+    align-items: center; gap: .05rem .6rem; padding: .45rem .8rem; border-top: 1px solid var(--line); text-align: left;
+}
+.kf-row:first-child { border-top: 0; }
+.kf-row.me { background: #eaf6ea; box-shadow: inset 4px 0 0 #006400; }
+.kf-row.konstr { box-shadow: inset 4px 0 0 var(--bad); }
+.kf-row.out { opacity: .55; }
+.kf-name { grid-area: name; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kf-info { grid-area: info; color: var(--muted); line-height: 1.3; }
+.kf-info:empty, .kf-act:empty { display: none; }
+.kf-act { grid-area: act; }
+.kf-me .kf-desc, .kf-me .kf-lines { margin: 0; text-align: left; }
+.kf-me.out { opacity: .75; }
+.kf-lean { margin: 0; padding-left: 1.2rem; text-align: left; }
+.kf-hint { margin: 0 0 .45rem; }
+.kf-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; margin: .2rem 0 .5rem; }
+.kf-buttons:empty { display: none; }
+.kf-stepper { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-bottom: .45rem; }
+.kf-remaining { margin: 0; text-align: left; }
+.kf-news { font-weight: 400; }
+
+/* ======================================================================
    Schmale Bildschirme (Handy)
    ====================================================================== */
 @media (max-width: 700px) {

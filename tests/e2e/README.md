@@ -18,10 +18,11 @@ Rate limits are switched off for the test instances (all browsers share one IP a
 | `zahlenkampf` | 2 players: moves chosen with the game logic (capturing moves preferred) until at least two captures and one drop from the reserve, same log for both, resign |
 | `trombone` | 3 players: deck choice, bids via the composer, “Trombone!” notice, reveal, simultaneous “Nächste Runde”, removing a player, “Person aufnehmen” with vote, rejoining with 2 cards, rounds until somebody loses, “Neues Spiel” |
 | `werbinich` | 3 players: picking (incl. “andere Person wählen”), typing is not interrupted by others' updates, changing a term, nobody sees (or receives) their own term, “Erraten!” notices, game over |
+| `konferenz` | 6 players (2 on phones): adjusting the role setup, a whole maths conference played through the buttons (proposals/choice of the constructivists, all night roles, open votes, physicist), only allowed roles visible to everyone, all roles revealed at the end, leaving early |
 | `edge` | 24-character names and 60-character terms on a phone, double click, renaming while seated, leaving a seat, spectators on a phone, removing a player in Who am I?, aborting Trombone |
 | `lobby-a` | table list, joining from the list, “Link kopieren” + opening the link in another browser, language link keeps the table, deleting a table (others see “gibt es nicht”), unknown table |
 | `lobby-b` | no table list, “Deine Tische”, removing a table from that list, tables of one instance are not reachable via another |
-| `english` | `?lang=en`: overview and all five game tables (rules opened) are scanned for German text, games started in English, English server errors, remembered language |
+| `english` | `?lang=en`: overview and all game tables (rules opened) are scanned for German text, plus a maths conference night with four players, games started in English, English server errors, remembered language |
 
 On every page: no JavaScript errors, no `console.error`, no failed API requests (unless expected),
 no Content Security Policy violations. At a 375 px wide phone viewport (at least one person per

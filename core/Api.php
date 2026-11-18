@@ -30,9 +30,9 @@ const MAX_STATE     = 200000;           // Bytes
 const MAX_BODY      = MAX_STATE + 20000;
 const ROOM_ID       = '/^[0-9a-f]{8}([0-9a-f]{8})?$/';   // 8 oder 16 Hex-Zeichen, siehe 'create'
 const MAX_RECENT    = 20;                                 // „Deine Tische“ im Browser (app.js: RECENT_MAX)
-const GAMES         = ['connect4' => 2, 'handbrain' => 4, 'zahlenkampf' => 2, 'trombone' => 8, 'werbinich' => 12];
-const SERVER_GAMES  = ['trombone', 'werbinich'];   // Spiele mit Geheimnissen: Logik auf dem Server
-const WIP_GAMES     = ['zahlenkampf'];             // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
+const GAMES         = ['connect4' => 2, 'handbrain' => 4, 'zahlenkampf' => 2, 'trombone' => 8, 'werbinich' => 12, 'konferenz' => 20];
+const SERVER_GAMES  = ['trombone', 'werbinich', 'konferenz'];   // Spiele mit Geheimnissen: Logik auf dem Server
+const WIP_GAMES     = ['zahlenkampf', 'konferenz'];             // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
 
 /** Voreinstellungen einer Instanz (Schlüssel wie in der Konfiguration). */
 const DEFAULTS = [
@@ -50,6 +50,7 @@ const DEFAULTS = [
 
 require_once __DIR__ . '/Trombone.php';
 require_once __DIR__ . '/WerBinIch.php';
+require_once __DIR__ . '/Konferenz.php';
 require_once __DIR__ . '/RateLimit.php';
 require_once __DIR__ . '/Validate.php';
 
@@ -338,6 +339,12 @@ function public_room(array $room, ?int $seat, string $token): array
         $orphaned = wb_orphaned($room);
         $room['state'] = wb_view($room['state'], $seat, $token);
         $room['state']['orphaned'] = $orphaned;
+    } elseif ($room['game'] === 'konferenz') {
+        $orphaned = kf_orphaned($room);
+        $room['state'] = kf_view($room['state'], $seat, $token);
+        $room['state']['orphaned'] = $orphaned;
+        // Vorschlag für die Rollenverteilung passend zur Zahl der Sitzenden
+        $room['state']['suggest'] = kf_default_config(count(array_filter($room['seats'])));
     }
     unset($room['creator']);
     foreach ($room['seats'] as $i => $s) {
@@ -611,7 +618,7 @@ function run(array $config): void
                 fail('Unbekanntes Spiel');
             }
             $state = $game === 'trombone' ? tb_init() : ($game === 'werbinich' ? wb_init()
-                : check_client_state($game, $in['state'] ?? null, 'Ungültiger Startzustand'));
+                : ($game === 'konferenz' ? kf_init() : check_client_state($game, $in['state'] ?? null, 'Ungültiger Startzustand')));
             if (!rate_limit('create', $client, cfg()['creates_per_hour'], 3600)) {
                 header('Retry-After: 600');
                 fail('Zu viele neue Tische – bitte später noch einmal versuchen', 429);
@@ -785,7 +792,7 @@ function run(array $config): void
             out(['room' => public_room($room, $seat, $token), 'mySeat' => $seat]);
 
         case 'game':
-            // Aktionen für Spiele mit Server-Logik (Trombone, Wer bin ich?)
+            // Aktionen für Spiele mit Server-Logik (Trombone, Wer bin ich?, Mathekonferenz)
             $op = param($in, 'op');
             $room = with_room(param($in, 'room'), function (&$room) use ($op, $in, $token) {
                 if (!in_array($room['game'], SERVER_GAMES, true)) {
@@ -797,6 +804,8 @@ function run(array $config): void
                 }
                 if ($room['game'] === 'trombone') {
                     tb_act($room, $seat, $token, $op, $in);
+                } elseif ($room['game'] === 'konferenz') {
+                    kf_act($room, $seat, $token, $op, $in);
                 } else {
                     wb_act($room, $seat, $token, $op, $in);
                 }
