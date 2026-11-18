@@ -392,6 +392,26 @@ function clean_name($name): string
  * Name am Tisch eindeutig machen: Ist „Anna“ schon vergeben, wird daraus „Anna 2“, „Anna 3“ …
  * (gilt nur für diesen Tisch; Groß-/Kleinschreibung zählt nicht).
  */
+/**
+ * Neuer Name auch im laufenden Spiel: Trombone und „Wer bin ich?“ speichern die Mitspielenden (mit Token)
+ * beim Start im Spielstand; die übrigen Spiele lesen die Namen direkt von den Plätzen.
+ */
+function rename_in_state(&$state, string $token, string $name): void
+{
+    if (!is_array($state)) {
+        return;
+    }
+    $mine = fn($x) => is_array($x) && is_string($x['token'] ?? null) && hash_equals($x['token'], $token);
+    foreach ((array)($state['players'] ?? []) as $i => $p) {
+        if ($mine($p)) {
+            $state['players'][$i]['name'] = $name;
+        }
+    }
+    if ($mine($state['proposal'] ?? null)) {   // Trombone: gerade zur Aufnahme vorgeschlagen
+        $state['proposal']['name'] = $name;
+    }
+}
+
 function unique_name(string $name, array $seats): string
 {
     $taken = [];
@@ -658,7 +678,11 @@ function run(array $config): void
                         $room['seats'][$i] = null;
                     }
                 }
-                $room['seats'][$seat] = ['name' => unique_name($name, $room['seats']), 'token' => $token];
+                // eindeutig auch gegenüber Mitspielenden im Spielstand, die gerade keinen Platz haben
+                $others = array_filter((array)($room['state']['players'] ?? []),
+                    fn($p) => is_array($p) && is_string($p['name'] ?? null) && !hash_equals((string)($p['token'] ?? ''), $token));
+                $room['seats'][$seat] = ['name' => unique_name($name, array_merge($room['seats'], array_values($others))), 'token' => $token];
+                rename_in_state($room['state'], $token, $room['seats'][$seat]['name']);
                 return true;
             });
             out(['room' => public_room($room, $seat, $token), 'mySeat' => $seat]);

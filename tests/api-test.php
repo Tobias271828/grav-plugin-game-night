@@ -343,6 +343,23 @@ foreach ([['op' => 'bid', 'bid' => 'x'], ['op' => 'bid', 'bid' => ['t' => 99, 'a
     check($code >= 400 && $code < 500, 'Trombone: unsinnige Eingabe sauber abgelehnt ' . json_encode($bad), $code);
 }
 
+// Namensänderung während des Spiels: auch in der Liste der Mitspielenden; Namen bleiben eindeutig
+[, $json] = api('open', ['action' => 'create', 'game' => 'trombone']);
+$tn = $json['id'];
+$pn = [token(), token(), token()];
+foreach ([0, 1] as $i) {
+    api('open', ['action' => 'sit', 'room' => $tn, 'seat' => $i, 'name' => "N$i", 'token' => $pn[$i]]);
+}
+api('open', ['action' => 'game', 'room' => $tn, 'op' => 'start', 'players' => 2, 'token' => $pn[0]]);
+[, $json] = api('open', ['action' => 'sit', 'room' => $tn, 'seat' => 0, 'name' => 'Paula', 'token' => $pn[0]]);
+$names = array_column($json['room']['state']['players'] ?? [], 'name', 'seat');
+check(($names[0] ?? null) === 'Paula' && ($names[1] ?? null) === 'N1', 'Trombone: neuer Name im laufenden Spiel', $names);
+api('open', ['action' => 'stand', 'room' => $tn, 'token' => $pn[1]]);   // N1 spielt weiter, sitzt aber nicht mehr
+[, $json] = api('open', ['action' => 'sit', 'room' => $tn, 'seat' => 1, 'name' => 'N1', 'token' => $pn[2]]);
+check(($json['room']['seats'][1]['name'] ?? null) === 'N1 2', 'neuer Name kollidiert nicht mit Mitspielenden ohne Platz', $json['room']['seats'][1] ?? null);
+[, , $raw] = api('open', ['action' => 'get', 'room' => $tn, 'token' => $pn[0]]);
+check(!str_contains($raw, $pn[0]) && !str_contains($raw, $pn[1]), 'auch danach keine Tokens in Trombone-Antworten');
+
 // Reihenfolge und Startspieler werden bei jedem Spiel neu ausgelost; wer vorne steht, beginnt
 [, $json] = api('open', ['action' => 'create', 'game' => 'trombone']);
 $to = $json['id'];
@@ -437,6 +454,10 @@ foreach ([0, 1, 2] as $i) {
 }
 [$code] = api('open', ['action' => 'game', 'room' => $wb, 'op' => 'start', 'players' => 3, 'token' => $w[0]]);
 check($code === 200, 'Wer bin ich? startet mit 3 Personen', $code);
+// Namensänderung während des Spiels kommt im Spielstand an (Trombone ebenso, siehe dort)
+[, $json] = api('open', ['action' => 'sit', 'room' => $wb, 'seat' => 1, 'name' => 'Wilma', 'token' => $w[1]]);
+$names = array_column($json['room']['state']['players'] ?? [], 'name', 'seat');
+check(($names[1] ?? null) === 'Wilma' && ($names[0] ?? null) === 'W0', 'Wer bin ich?: neuer Name im laufenden Spiel', $names);
 $terms = ['Begriffnullzwei', 'Begriffeinsnull', 'Begriffzweieins'];
 foreach ([[0, 1], [1, 2], [2, 0]] as $k => [$by, $target]) {
     [$code, $json] = api('open', ['action' => 'game', 'room' => $wb, 'op' => 'pick', 'target' => $target, 'token' => $w[$by]]);
