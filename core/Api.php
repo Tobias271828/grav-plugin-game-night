@@ -28,6 +28,8 @@ const FILE_JSON     = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSO
 const GUARD         = "<?php http_response_code(404); exit; ?>\n";
 const MAX_STATE     = 200000;           // Bytes
 const MAX_BODY      = MAX_STATE + 20000;
+const ROOM_ID       = '/^[0-9a-f]{8}([0-9a-f]{8})?$/';   // 8 oder 16 Hex-Zeichen, siehe 'create'
+const MAX_RECENT    = 20;                                 // „Deine Tische“ im Browser (app.js: RECENT_MAX)
 const GAMES         = ['connect4' => 2, 'handbrain' => 4, 'zahlenkampf' => 2, 'trombone' => 8, 'werbinich' => 12];
 const SERVER_GAMES  = ['trombone', 'werbinich'];   // Spiele mit Geheimnissen: Logik auf dem Server
 const WIP_GAMES     = ['zahlenkampf'];             // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
@@ -188,7 +190,7 @@ function fail(string $msg, int $code = 400): void
  */
 function room_path(string $id): string
 {
-    if (!preg_match('/^[0-9a-f]{8}([0-9a-f]{8})?$/', $id)) {   // 8 oder 16 Hex-Zeichen, siehe 'create'
+    if (!preg_match(ROOM_ID, $id)) {
         fail('Ungültige Tisch-ID');
     }
     foreach (room_files() as $file) {
@@ -649,6 +651,28 @@ function run(array $config): void
                 fail('Speichern fehlgeschlagen', 507);
             }
             out(['id' => $id]);
+
+        case 'exists':
+            // Welche dieser Tische gibt es noch? Für „Deine Tische“ ohne Tischliste: Gelöschte und
+            // abgelaufene Tische verschwinden dort, ohne dass man sie öffnen muss. Nur IDs, keine Inhalte.
+            $ids = $in['rooms'] ?? null;
+            if (!is_array($ids) || count($ids) > MAX_RECENT) {
+                fail('Ungültige Tisch-ID');
+            }
+            $names = array_map('basename', room_files());
+            $found = [];
+            foreach ($ids as $id) {
+                if (!is_string($id) || !preg_match(ROOM_ID, $id)) {
+                    fail('Ungültige Tisch-ID');
+                }
+                foreach ($names as $n) {
+                    if (str_ends_with($n, "-$id.php") || $n === "room-$id.php") {
+                        $found[] = $id;
+                        break;
+                    }
+                }
+            }
+            out(['rooms' => array_values(array_unique($found))]);
 
         case 'get':
             $file = room_path(param($in, 'room'));

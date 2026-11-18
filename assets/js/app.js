@@ -53,7 +53,7 @@ const RECENT_KEY = 'recent.' + API;   // je Instanz getrennt
 function recentRooms() {
     try {
         const list = JSON.parse(store.get(RECENT_KEY, '[]'));
-        return Array.isArray(list) ? list.filter(r => r && /^[a-z0-9]{6,16}$/.test(r.id)) : [];
+        return Array.isArray(list) ? list.filter(r => r && /^[0-9a-f]{8}([0-9a-f]{8})?$/.test(r.id)) : [];   // Format wie ROOM_ID auf dem Server
     } catch (e) {
         return [];
     }
@@ -152,11 +152,12 @@ async function showLobby() {
             h('span', { class: 'game-go', 'aria-hidden': 'true' }, h('span', { class: 'game-go-text' }, t('Neuer Tisch', 'New table'))),
         ));
 
+    const recent = LOBBY ? null : recentSection();
     app.replaceChildren(
         LOBBY ? h('section', {},
             h('h2', {}, t('Offene Tische', 'Open tables')),
             list,
-        ) : recentSection(),
+        ) : recent,
         h('section', {},
             h('h2', {}, t('Neues Spiel', 'New game')),
             h('div', { class: 'game-grid' }, gameCards),
@@ -180,7 +181,10 @@ async function showLobby() {
         ),
     );
 
-    if (!LOBBY) return;
+    if (!LOBBY) {
+        pruneRecent(recent);
+        return;
+    }
     const load = async () => {
         try {
             const { rooms } = await api('list');
@@ -193,6 +197,18 @@ async function showLobby() {
     clearInterval(lobbyTimer);
     if (location.hash.startsWith('#r=')) return;   // inzwischen an einen Tisch gewechselt
     lobbyTimer = setInterval(() => { if (!document.hidden && !location.hash.startsWith('#r=')) load(); }, 5000);
+}
+
+/** Gelöschte oder abgelaufene Tische aus „Deine Tische“ streichen (eine Anfrage für alle). */
+async function pruneRecent(section) {
+    const ids = recentRooms().map(r => r.id);
+    if (!ids.length) return;
+    let rooms;
+    try { ({ rooms } = await api('exists', { rooms: ids })); } catch (e) { return; }   // offline o. Ä.: Liste lassen
+    const gone = ids.filter(id => !rooms.includes(id));
+    if (!gone.length) return;
+    gone.forEach(forgetRoom);
+    if (section.isConnected) section.replaceWith(recentSection());
 }
 
 /** Ohne Tischliste: die Tische, die man in diesem Browser schon geöffnet hat. */

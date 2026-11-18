@@ -488,6 +488,18 @@ section('Instanz ohne Tischliste');
 check($code === 403, 'list → 403', $code);
 [$code, $json] = api('unlisted', ['action' => 'create', 'game' => 'connect4', 'state' => c4([0])]);
 check(preg_match('/^[0-9a-f]{16}$/', $json['id'] ?? ''), '16-stellige ID ohne Tischliste', $json);
+// „Deine Tische“: welche Tische gibt es noch? (nur IDs, gelöschte fallen heraus)
+$u1 = $json['id'];
+[$code, $json] = api('unlisted', ['action' => 'exists', 'rooms' => [$u1, 'abcdef0123456789', $u1]]);
+check($code === 200 && $json['rooms'] === [$u1], 'exists: nur vorhandene Tische, ohne Doppelte', $json);
+[$code, $json] = api('open', ['action' => 'exists', 'rooms' => [$u1]]);
+check($code === 200 && $json['rooms'] === [], 'exists: Tische anderer Instanzen gibt es dort nicht', $json);
+[$code] = api('unlisted', ['action' => 'exists', 'rooms' => ['../x']]);
+check($code === 400, 'exists: ungültige ID → 400', $code);
+[$code] = api('unlisted', ['action' => 'exists', 'rooms' => array_fill(0, 21, $u1)]);
+check($code === 400, 'exists: höchstens 20 IDs', $code);
+[$code] = api('unlisted', ['action' => 'exists', 'rooms' => 'x']);
+check($code === 400, 'exists: keine Liste → 400', $code);
 [$code] = api('unlisted', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => c4([0])]);
 check($code === 400, 'nicht angebotenes Spiel abgelehnt', $code);
 api('unlisted', ['action' => 'create', 'game' => 'connect4', 'state' => c4([0])]);

@@ -1143,6 +1143,20 @@ defineSuite('lobby-b', async (browser, players) => {
     await Q.goto(`${BASE}/b/`);
     await check(!(await Q.hasText(title)), 'table stays removed after reload', [Q]);
 
+    step('a table deleted by someone else disappears from “Deine Tische” without opening it');
+    await P.goto(`${BASE}/b/`);
+    const url2 = await P.createTable('Vier in einer Reihe');
+    const title2 = 'Vier in einer Reihe mit Paula';
+    await Q.goto(url2);
+    await Q.waitFor(() => !!document.querySelector('.room-head'));
+    await Q.goto(`${BASE}/b/`);
+    await Q.waitText(title2);
+    await P.click('.controls .link', 'Tisch löschen');
+    await P.waitFor(() => location.hash === '');
+    await Q.goto(`${BASE}/b/`);
+    const gone = await Q.waitFor(t => ![...document.querySelectorAll('.room-list')].some(e => e.innerText.includes(t)), title2).then(() => true, () => false);
+    await check(gone, 'deleted table removed from “Deine Tische” on the overview', [Q]);
+
     step('the table of instance b is not reachable via instance a');
     P.allow(/HTTP 404 \/a\/api: /);
     await P.goto(`${BASE}/a/#r=${id}`);
