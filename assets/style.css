@@ -220,8 +220,7 @@
 }
 .zk-cell.home0 { background: var(--zk-cell0); }
 .zk-cell.home1 { background: var(--zk-cell1); }
-.zk-cell.neutral { background: #fbf8f1; }
-.zk-cell.campline { border-bottom: 2px solid var(--muted); }   /* Grenze eines Lagers */
+.zk-cell.campline { border-bottom: 2px solid var(--muted); }   /* Grenze der beiden Lager */
 .zk-cell.lastmove { box-shadow: inset 0 0 0 3px rgba(31, 140, 214, .55); }
 .zk-cell.lastcap { box-shadow: inset 0 0 0 3px rgba(214, 69, 69, .55); }   /* hier wurde gerade geschlagen */
 .zk-cell.target { cursor: pointer; }
@@ -250,8 +249,6 @@
 }
 .zk-stone.side0.pyramid { background: linear-gradient(#e7b84a, #fff3cf); }
 .zk-stone.side1.pyramid { background: linear-gradient(#8a6a1f, #59657a); }
-.zk-stone.conv { outline: 2px dashed var(--accent); outline-offset: -4px; }
-.zk-stone.tri.conv, .zk-stone.pyramid.conv { filter: drop-shadow(0 0 2px var(--accent)); }
 .zk-stone.own { cursor: pointer; }
 .zk-stone.selected { box-shadow: 0 0 0 3px var(--sel); filter: drop-shadow(0 0 4px var(--sel)); }
 .zk-stone.harmony { animation: pulse .8s infinite alternate; filter: drop-shadow(0 0 6px gold); }
@@ -259,11 +256,13 @@
 .zk-stone.long { font-size: .68rem; letter-spacing: -.02em; }
 .zk-stone.tri.long, .zk-stone.pyramid.long { font-size: .56rem; letter-spacing: -.04em; }
 
-.zk-score { margin: .35rem 0; }
-.zk-settings { text-align: left; }
-.zk-setting { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin-bottom: .5rem; }
-.zk-setting .tb-chip { min-width: 6.5rem; }
-.zk-setting .zk-stepper { margin: 0 0 0 auto; }
+.zk-score { margin: .35rem auto; max-width: 460px; text-align: left; }
+/* Fortschritt zu den Siegen nach Körpern und Gütern */
+.zk-bar { display: grid; grid-template-columns: 4.2rem 1fr auto; align-items: center; gap: .5rem; margin-top: .15rem; }
+.zk-bar-track { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.zk-bar-fill { display: block; height: 100%; background: #006400; border-radius: 4px; }
+.zk-bar-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.zk-tri { color: #8a6100; font-weight: 600; margin-top: .15rem; }
 .zk-legend { margin: .25rem 0 1rem; }
 .zk-logbox { text-align: left; }
 .zk-logbox summary { cursor: pointer; font-weight: 600; }

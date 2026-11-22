@@ -476,7 +476,7 @@ function renderRoomUnsafe() {
     game.render(board, ctx);
 
     const controls = h('div', { class: 'controls' },
-        mySeat !== null && allSeated && !state.over && !game.ownControls && (!game.canResign || game.canResign(state)) ? h('button', {
+        mySeat !== null && allSeated && !state.over && !game.ownControls ? h('button', {
             class: 'btn', onclick: () => {
                 if (!confirm(t('Wirklich aufgeben?', 'Really resign?'))) return;
                 const ns = game.resign(clone(state), mySeat);

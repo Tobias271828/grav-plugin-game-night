@@ -91,17 +91,14 @@ function valid_state(string $game, $state, int $seats): bool
             $part = fn($p) => is_array($p) && $shape($p['shape'] ?? null) && int_in($p['v'] ?? null, 1, 100000);
             $stone = fn($s) => is_array($s) && int_in($s['id'] ?? null, 0, 100000) && int_in($s['side'] ?? null, 0, 1)
                 && int_in($s['v'] ?? null, 1, 100000) && int_in($s['r'] ?? null, 0, 15) && int_in($s['c'] ?? null, 0, 7)
-                && is_bool($s['fly'] ?? false) && is_bool($s['conv'] ?? false)
-                && (($s['shape'] ?? null) === 'K' ? is_list_of($s['parts'] ?? null, 6, $part) && $s['parts'] : $shape($s['shape'] ?? null));
+                && is_bool($s['fly'] ?? false)
+                && (($s['shape'] ?? null) === 'P' ? is_list_of($s['parts'] ?? null, 6, $part) && $s['parts'] : $shape($s['shape'] ?? null));
             $square = fn($q) => is_list_of($q, 2, fn($v) => is_int($v)) && count($q) === 2 && int_in($q[0], 0, 15) && int_in($q[1], 0, 7);
-            $st = $state['settings'] ?? null;
             $last = $state['last'] ?? null;
-            return in_array($state['phase'] ?? null, ['setup', 'play'], true)
-                && is_array($st) && is_bool($st['triumph'] ?? null) && int_in($st['bodies'] ?? null, 0, 48) && int_in($st['goods'] ?? null, 0, 100000)
-                && is_list_of($state['stones'] ?? null, 60, $stone)
-                && is_list_of($state['taken'] ?? null, 2, fn($t) => is_array($t) && int_in($t['n'] ?? null, 0, 100) && int_in($t['sum'] ?? null, 0, 1000000))
+            return is_list_of($state['stones'] ?? null, 48, $stone)
+                && is_list_of($state['taken'] ?? null, 2, fn($t) => is_array($t) && int_in($t['n'] ?? null, 0, 48) && int_in($t['sum'] ?? null, 0, 1000000))
                 && count($state['taken']) === 2
-                && is_list_of($state['captured'] ?? [], 60, $square)
+                && is_list_of($state['captured'] ?? [], 48, $square)
                 && (($state['triumph'] ?? null) === null || is_list_of($state['triumph'], 4, fn($v) => int_in($v, 0, 100000)))
                 && ($last === null || (is_array($last) && $square($last['from'] ?? null) && $square($last['to'] ?? null)))
                 && is_list_of($state['log'] ?? [], 200, 'is_array');

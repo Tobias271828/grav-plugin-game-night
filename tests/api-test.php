@@ -200,12 +200,12 @@ check($code === 400, 'Startzustand muss ein Objekt sein', $code);
 check($code === 413 || $code === 400, 'zu großer Startzustand abgelehnt', $code);
 
 // Zahlenkampf: gültiger Startzustand (wie ZK.initState, gekürzt) und manipulierte Varianten
-$zk = fn(array $stone = []) => ['phase' => 'setup', 'settings' => ['triumph' => true, 'bodies' => 12, 'goods' => 600],
-    'stones' => [$stone + ['id' => 0, 'side' => 0, 'shape' => 'rd', 'v' => 4, 'r' => 4, 'c' => 5, 'fly' => false, 'conv' => false],
-                 ['id' => 1, 'side' => 1, 'shape' => 'K', 'v' => 190, 'r' => 12, 'c' => 7, 'fly' => false, 'conv' => false,
+$zk = fn(array $stone = []) => [
+    'stones' => [$stone + ['id' => 0, 'side' => 0, 'shape' => 'rd', 'v' => 4, 'r' => 2, 'c' => 5, 'fly' => false],
+                 ['id' => 1, 'side' => 1, 'shape' => 'P', 'v' => 190, 'r' => 14, 'c' => 7, 'fly' => false,
                   'parts' => [['shape' => 'sq', 'v' => 64], ['shape' => 'rd', 'v' => 16]]]],
     'taken' => [['n' => 0, 'sum' => 0], ['n' => 0, 'sum' => 0]], 'turn' => [0], 'over' => false, 'winner' => null, 'end' => null,
-    'last' => null, 'captured' => [], 'triumph' => null, 'log' => [], 'nextId' => 2];
+    'last' => null, 'captured' => [], 'triumph' => null, 'log' => []];
 [$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $zk()]);
 check($code === 200, 'Zahlenkampf: gültiger Startzustand angenommen', $code);
 foreach ([
@@ -213,9 +213,9 @@ foreach ([
     '__proto__ als Reihe' => $zk(['r' => '__proto__', 'c' => 'map']),
     'Reihe außerhalb'     => $zk(['r' => 16]),
     'unbekannte Form'     => $zk(['shape' => 'zauber']),
-    'König ohne Teile'    => $zk(['shape' => 'K']),
-    'zu viele Steine'     => ['stones' => array_fill(0, 61, $zk()['stones'][0])] + $zk(),
-    'Siegbedingung'       => ['settings' => ['triumph' => 'ja', 'bodies' => 12, 'goods' => 600]] + $zk(),
+    'Pyramide ohne Teile' => $zk(['shape' => 'P']),
+    'zu viele Steine'     => ['stones' => array_fill(0, 49, $zk()['stones'][0])] + $zk(),
+    'Zählerstand'         => ['taken' => [['n' => 'x', 'sum' => 0], ['n' => 0, 'sum' => 0]]] + $zk(),
 ] as $what => $state) {
     [$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $state]);
     check($code === 400, "Zahlenkampf: manipulierter Startzustand abgelehnt: $what", $code);

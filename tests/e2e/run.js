@@ -557,24 +557,10 @@ defineSuite('zahlenkampf', async (browser, players) => {
     await od.takeSeat(1);
     await ev.waitText('Otto');
 
-    step('victory conditions: Bodies set to 2 men, Goods off – both see the same settings');
-    await ev.waitText('Wie wird gewonnen?');
-    await ev.checkNoHScroll('zahlenkampf setup (mobile)');
-    const settings = () => ev.page.evaluate(() => current.room.state.settings);
-    for (let i = 0; i < 10; i++) {
-        const before = (await settings()).bodies;
-        await ev.clickFn(() => [...document.querySelectorAll('.zk-setting')].find(r => r.textContent.includes('Körper'))
-            .querySelectorAll('.zk-stepper button')[0], 'bodies −');
-        await ev.waitFor(b => current.room.state.settings.bodies === b - 1, before);
-    }
-    await ev.click('.zk-setting .tb-chip.on', 'Güter');
-    await ev.waitFor(() => current.room.state.settings.goods === 0);
-    await od.waitFor(() => current.room.state.settings.bodies === 2 && current.room.state.settings.goods === 0);
-    await check(JSON.stringify(await settings()) === JSON.stringify({ triumph: true, bodies: 2, goods: 0 }), 'settings saved', [ev]);
-    await od.click('.tb .btn.primary', 'Spiel starten');
     await all(players, p => p.waitFor(() => !!document.querySelector('.zk-board')));
     await ev.checkNoHScroll('zahlenkampf board (mobile)');
     await snap([ev, od], 'zk-start');
+    await check(await ev.count('.zk-bar') === 4, 'progress bars for bodies and goods on both sides', [ev]);
 
     // Zug im Browser der Person mit der Spiellogik (ZK) aussuchen: Schlagzug > fliegend (einmal) > zufällig
     let seed = 7;
@@ -618,14 +604,14 @@ defineSuite('zahlenkampf', async (browser, players) => {
         .then(() => check(true, 'move log mentions a flying move'), () => check(false, 'move log mentions a flying move', [od]));
 
     // Schlagen über die Oberfläche: vorbereitete Stellung (zufällig fällt selten etwas), dann zwei Schlagzüge per Klick
-    step('prepared position: equality capture, prisoner changes sides, second capture → victory of bodies (2 men)');
+    step('prepared position: equality capture (the man leaves the board and is counted), then the 12th man → victory of bodies');
     const odVersion = await od.page.evaluate(() => current.room.version);
     await ev.waitFor(v => current.room.version >= v, odVersion);   // beide Browser auf demselben Stand
     await ev.page.evaluate(async () => {
-        const st = ZK.start(current.room.state);
+        const st = ZK.initState();
         st.stones = [[0, 'rd', 36, 7, 3], [0, 'rd', 64, 7, 5], [0, 'rd', 2, 0, 0], [1, 'tri', 36, 9, 5], [1, 'sq', 64, 9, 7], [1, 'rd', 3, 15, 0]]
-            .map(([side, shape, v, r, c], id) => ({ id, side, shape, v, r, c, fly: false, conv: false }));
-        st.nextId = 6;
+            .map(([side, shape, v, r, c], id) => ({ id, side, shape, v, r, c, fly: false }));
+        st.taken = [{ n: 10, sum: 500 }, { n: 0, sum: 0 }];   // zwei Schläge bis zum Sieg nach Körpern
         await act('move', { state: st, version: current.room.version, kind: 'reset' });
     });
     await all(players, q => q.waitFor(() => current.room.state.stones.length === 6));
@@ -642,8 +628,9 @@ defineSuite('zahlenkampf', async (browser, players) => {
     };
     let cls = await play(ev, [7, 3], [8, 4]);
     await check(cls.includes('capture'), 'capturing target square is marked red', [ev]);
-    await check(await od.page.evaluate(() => current.room.state.stones.some(s => s.side === 0 && s.conv && s.v === 36 && s.r === 0)),
-        'captured man changes sides and stands at the back of the captor\'s camp', [od]);
+    await check(await od.page.evaluate(() => current.room.state.stones.length === 5 && current.room.state.taken[0].n === 11),
+        'captured man leaves the board and is counted', [od]);
+    await check((await od.text('.zk-score')).includes('11 / 12'), 'progress bar shows 11 / 12', [od]);
     captures++;
     await play(od, [15, 0], [14, 1]);
     cls = await play(ev, [7, 5], [8, 6]);
@@ -659,15 +646,11 @@ defineSuite('zahlenkampf', async (browser, players) => {
     await ev.checkNoHScroll('zahlenkampf after moves (mobile)');
     await snap([ev, od], 'zk');
 
-    step('new round keeps the victory conditions; resign');
+    step('new round; resign');
     if (!over) await ev.click('.controls .btn', 'Aufgeben');
     await all(players, q => q.waitFor(() => current.room.state.over));
     await ev.click('.controls .btn.primary', 'Neue Runde');
-    await all(players, q => q.waitText('Wie wird gewonnen?'));
-    await check((await ev.page.evaluate(() => current.room.state.settings.bodies)) === 2, 'settings kept for the next round', [ev]);
-    await check(!(await ev.exists('.controls .btn:not(.primary)')) || !(await ev.text('.controls')).includes('Aufgeben'), 'no “resign” before the start', [ev]);
-    await ev.click('.tb .btn.primary', 'Spiel starten');
-    await all(players, q => q.waitFor(() => !!document.querySelector('.zk-board')));
+    await all(players, q => q.waitFor(() => !current.room.state.over && current.room.state.stones.length === 48));
     await od.click('.controls .btn', 'Aufgeben');
     await all(players, q => q.waitText('gibt auf'));
     await check((await ev.text('.status')).includes('gewinnt'), 'winner is named after resign', [ev]);

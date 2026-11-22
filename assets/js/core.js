@@ -45,7 +45,7 @@ function t(de, en) {
  * Optional: resign(state, seat), seatInfo (Text statt Platzliste in der Übersicht),
  * flexibleSeats (Spiel startet ohne volle Plätze), ownSeats / ownControls (Spiel zeigt Plätze bzw.
  * Knöpfe selbst), isMyTurn(state, seat), notice(state) (Ereignis-Hinweis), attention(state) (z. B. Abstimmung),
- * canResign(state) (z. B. erst, wenn das Spiel wirklich läuft), wip (in Arbeit: Kennzeichen in der Übersicht).
+ * wip (in Arbeit: Kennzeichen in der Übersicht).
  */
 function registerGame(game) {
     Games[game.id] = game;
