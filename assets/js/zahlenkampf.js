@@ -10,7 +10,7 @@
     const MOVE_TXT = LANG === 'en'
         ? { rd: '1 square diagonally', tri: '2 squares straight or flying like a knight', sq: '3 squares straight or flying like a long knight' }
         : { rd: '1 Feld diagonal', tri: '2 Felder gerade oder fliegend wie der Springer', sq: '3 Felder gerade oder fliegend wie ein langer Springer' };
-    const PROP_NAME = LANG === 'en' ? { arith: 'arithmetic', geo: 'geometric', harm: 'harmonic' } : { arith: 'arithmetisch', geo: 'geometrisch', harm: 'harmonisch' };
+    const PROG_NAME = LANG === 'en' ? { arith: 'arithmetic', geo: 'geometric', harm: 'harmonic' } : { arith: 'arithmetisch', geo: 'geometrisch', harm: 'harmonisch' };
 
     // Ein Pyramiden-Emoji gibt es nicht – deshalb eine kleine Stufenpyramide wie die Pyramide auf dem Brett
     function pyramidIcon() {
@@ -37,7 +37,7 @@
 
     /** Ein Eintrag des Zugprotokolls als Satz in der Seitensprache. */
     function logText(e) {
-        let text = e.fly ? t(`${stoneName(e.stone)} fliegt`, `${stoneName(e.stone)} flies`) : t(`${stoneName(e.stone)} zieht`, `${stoneName(e.stone)} moves`);
+        let text = t(`${stoneName(e.stone)} zieht`, `${stoneName(e.stone)} moves`);
         for (const c of e.caps || []) text += t(` · schlägt ${stoneName(c.stone)} (${whyText(c.why)})`, ` · captures ${stoneName(c.stone)} (${whyText(c.why)})`);
         for (const c of e.lost || []) text += t(` · verliert ${stoneName(c.stone)} (${whyText(c.why)})`, ` · loses ${stoneName(c.stone)} (${whyText(c.why)})`);
         return text;
@@ -46,8 +46,7 @@
     function endText(end) {
         if (!end) return '';
         if (end.type === 'triumph') {
-            const name = [null, t('Großer Triumph', 'Great triumph'), t('Größerer Triumph', 'Greater triumph'), t('Größter Triumph', 'Greatest triumph')][end.level];
-            return `${name}: ${end.values.join(' – ')} (${end.kinds.map(k => PROP_NAME[k]).join(', ')})!`;
+            return t('Triumph', 'Triumph') + `: ${end.values.join(' – ')} (${PROG_NAME[end.kind]})!`;
         }
         if (end.type === 'bodies') return t(`Sieg nach Körpern: ${end.n} Steine geschlagen.`, `Victory of bodies: ${end.n} men captured.`);
         if (end.type === 'goods') return t(`Sieg nach Gütern: Steine im Wert von ${end.sum} geschlagen.`, `Victory of goods: men worth ${end.sum} captured.`);
@@ -152,12 +151,11 @@
                 let title = null;
                 if (tg) {
                     cls.push('target');
-                    if (tg.fly) cls.push('fly');
                     const entry = tg.preview && tg.preview.log[tg.preview.log.length - 1];
                     if (entry && (entry.caps.length || entry.lost.length)) cls.push('capture');
                     if (tg.preview && tg.preview.over) cls.push('winning');
                     title = tg.preview && tg.preview.over ? endText(tg.preview.end)
-                        : entry && (entry.caps.length || entry.lost.length) ? logText(entry) : (tg.fly ? t('fliegen', 'fly') : null);
+                        : entry && (entry.caps.length || entry.lost.length) ? logText(entry) : null;
                 }
                 const extra = [
                     s && sel.stone === s.id ? 'selected' : '',
@@ -195,7 +193,7 @@
             score(bottom),
             h('div', { class: 'zk-legend small muted' },
                 mySeat !== null ? t('Dein Lager ist unten.', 'Your camp is at the bottom.') : t('Gerade unten, Ungerade oben.', 'Evens at the bottom, Odds at the top.'),
-                t(' Gestrichelte Zielfelder sind fliegende Züge, rote schlagen etwas.', ' Dashed target squares are flying moves, red ones capture something.')),
+                t(' Rote Zielfelder schlagen etwas.', ' Red target squares capture something.')),
             state.log.length ? h('details', { class: 'zk-logbox', open: true }, h('summary', {}, t('Letzte Züge', 'Recent moves')), log) : null,
         ];
     }
@@ -203,48 +201,58 @@
     function rulesHtml() {
         const goal = ZK.GOAL;
         return LANG === 'en' ? `
-            <p>Fulke's first variant as reconstructed by Mark Waks
-            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>), setup as in Fulke's picture.
-            Board of 8 × 16 squares; each side's <b>camp</b> is its half (8 × 8). <b>Evens</b> (light) play from the bottom and begin,
+            <p>Board of 8 × 16 squares; each side's <b>camp</b> is its half (8 × 8). <b>Evens</b> (light) play from the bottom and begin,
             <b>Odds</b> (dark) from the top. Each side has 8 rounds (●), 8 triangles (▲) and 8 squares (■, one of them is the pyramid).</p>
-            <p><b>Moving:</b> rounds 1 square diagonally; triangles exactly 2 squares and squares exactly 3 squares straight
-            (horizontally or vertically), never jumping over a man. Triangles may also <b>fly</b> like a chess knight, squares like a
-            “long knight” (1 + 3); flying may jump, but a flying move must not capture anything. The <b>pyramid</b> (Evens 91 = 36 + 25 + 16 + 9 + 4 + 1,
-            Odds 190 = 64 + 49 + 36 + 25 + 16) moves like any of the shapes it still contains.</p>
+            <p><b>Moving</b> (always onto a free square): rounds 1 square diagonally; triangles exactly 2 squares and squares exactly 3 squares
+            straight (horizontally or vertically), never jumping over a man. Triangles may also <b>fly</b> like a chess knight, squares like a
+            “long knight” (1 + 3); flying may jump over men and is an ordinary move in every respect. The <b>pyramid</b>
+            (Evens 91 = 36 + 25 + 16 + 9 + 4 + 1, Odds 190 = 64 + 49 + 36 + 25 + 16) moves like any of the shapes it still contains.</p>
             <p><b>Capturing</b> happens without moving. After every move, first the opponent's men that can now be captured are removed,
-            then – if the rule still holds – the mover's own:</p>
+            then – if the rule still holds – the mover's own. A man <i>reaches</i> a square if it could move there (straight or flying) were the square free.</p>
             <ul>
-              <li><b>Equality:</b> a man of the other side with the same value could reach it with an ordinary move.</li>
-              <li><b>Addition, subtraction, multiplication, division:</b> two men of the other side could both reach it, and their sum, difference, product or quotient is its value.</li>
-              <li><b>Surrounding:</b> all target squares of its ordinary moves are occupied or off the board, and at least one of them is occupied by the other side.</li>
+              <li><b>Equality:</b> a man of the other side with the same value reaches it.</li>
+              <li><b>Addition, subtraction, multiplication, division:</b> two men of the other side both reach it, and their sum, difference, product or quotient is its value (division only without remainder).</li>
+              <li><b>Surrounding:</b> all target squares of its straight moves (without flying) are occupied or off the board, and at least one of them is occupied by the other side.</li>
               <li>A whole <b>pyramid</b> never falls by equality – only by a calculation with its total value or by surrounding. Single parts fall by equality or a calculation with their value; the number on the pyramid is the sum of its remaining parts, and it loses the moves of shapes it no longer contains.</li>
             </ul>
-            <p>Captured men leave the board. <b>Victory:</b> <b>triumph</b> – once the enemy pyramid is completely captured, three of your men
-            (that did not arrive flying) in a line in the enemy camp whose values form an arithmetic (4, 6, 8), geometric (2, 4, 8)
-            or harmonic (3, 4, 6) proportion (four men in a line or square with two or three proportions: greater/greatest triumph);
-            <b>bodies</b> – half of the enemy men captured (${goal[0].n}); <b>goods</b> – ¾ of the enemy's total value captured
-            (Evens ${goal[0].sum}, Odds ${goal[1].sum}). A player who cannot move loses.</p>`
-            : `
-            <p>Fulkes erste Variante in der Rekonstruktion von Mark Waks
-            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>), Aufstellung wie in Fulkes Bild.
-            Brett mit 8 × 16 Feldern; das <b>Lager</b> jeder Seite ist ihre Hälfte (8 × 8). <b>Gerade</b> (hell) spielt von unten und beginnt,
-            <b>Ungerade</b> (dunkel) von oben. Jede Seite hat 8 Runde (●), 8 Dreiecke (▲) und 8 Quadrate (■, eines davon ist die Pyramide).</p>
-            <p><b>Ziehen:</b> Runde 1 Feld diagonal; Dreiecke genau 2 und Quadrate genau 3 Felder gerade (waagrecht oder senkrecht),
-            ohne einen Stein zu überspringen. Dreiecke dürfen außerdem wie der Springer im Schach <b>fliegen</b>, Quadrate wie ein
-            „langer Springer“ (1 + 3); fliegend darf man überspringen, aber nichts schlagen. Die <b>Pyramide</b> (Gerade 91 = 36 + 25 + 16 + 9 + 4 + 1,
-            Ungerade 190 = 64 + 49 + 36 + 25 + 16) zieht wie jede Form, die sie noch enthält.</p>
-            <p><b>Geschlagen</b> wird ohne zu ziehen. Nach jedem Zug fallen zuerst die Steine der Gegenseite, die jetzt geschlagen werden können,
-            danach – falls die Regel dann noch gilt – die eigenen:</p>
+            <p>Captured men leave the board. <b>Victory:</b></p>
             <ul>
-              <li><b>Gleichheit:</b> Ein Stein der anderen Seite mit gleichem Wert könnte ihn mit einem gewöhnlichen Zug erreichen.</li>
-              <li><b>Addition, Subtraktion, Multiplikation, Division:</b> Zwei Steine der anderen Seite könnten ihn beide erreichen, und Summe, Differenz, Produkt oder Quotient ihrer Werte ergibt seinen Wert.</li>
-              <li><b>Einschließen:</b> Alle Zielfelder seiner gewöhnlichen Züge sind besetzt oder außerhalb des Bretts, und mindestens eines davon ist von der anderen Seite besetzt.</li>
+              <li><b>Triumph</b> – once the enemy pyramid is completely captured: a line of at least 3 men without gaps (horizontal, vertical or diagonal)
+              lying entirely in the enemy camp, whose two end men are yours (the men in between may belong to either side) and whose values together
+              form a progression (order does not matter): arithmetic (4, 6, 8 or 2, 4, 6, 8), geometric (2, 4, 8) or harmonic (3, 4, 6 – the reciprocals are arithmetic).</li>
+              <li><b>Bodies</b> – half of the enemy men captured (${goal[0].n}).</li>
+              <li><b>Goods</b> – ¾ of the enemy's total value captured (Evens ${goal[0].sum}, Odds ${goal[1].sum}).</li>
+            </ul>
+            <p>A player who cannot move loses.</p>
+            <p class="muted small">Source of our rules, for reference: Fulke's first variant as reconstructed by Mark Waks
+            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>), setup as in Fulke's picture;
+            our group has changed some details (flying, triumph, captured men).</p>`
+            : `
+            <p>Brett mit 8 × 16 Feldern; das <b>Lager</b> jeder Seite ist ihre Hälfte (8 × 8). <b>Gerade</b> (hell) spielt von unten und beginnt,
+            <b>Ungerade</b> (dunkel) von oben. Jede Seite hat 8 Runde (●), 8 Dreiecke (▲) und 8 Quadrate (■, eines davon ist die Pyramide).</p>
+            <p><b>Ziehen</b> (immer auf ein freies Feld): Runde 1 Feld diagonal; Dreiecke genau 2 und Quadrate genau 3 Felder gerade (waagrecht oder senkrecht),
+            ohne einen Stein zu überspringen. Dreiecke dürfen außerdem wie der Springer im Schach <b>fliegen</b>, Quadrate wie ein
+            „langer Springer“ (1 + 3); fliegend darf man überspringen, sonst ist Fliegen ein ganz normaler Zug. Die <b>Pyramide</b>
+            (Gerade 91 = 36 + 25 + 16 + 9 + 4 + 1, Ungerade 190 = 64 + 49 + 36 + 25 + 16) zieht wie jede Form, die sie noch enthält.</p>
+            <p><b>Geschlagen</b> wird ohne zu ziehen. Nach jedem Zug fallen zuerst die Steine der Gegenseite, die jetzt geschlagen werden können,
+            danach – falls die Regel dann noch gilt – die eigenen. Ein Stein <i>erreicht</i> ein Feld, wenn er dorthin ziehen oder fliegen könnte, wäre es frei.</p>
+            <ul>
+              <li><b>Gleichheit:</b> Ein Stein der anderen Seite mit gleichem Wert erreicht ihn.</li>
+              <li><b>Addition, Subtraktion, Multiplikation, Division:</b> Zwei Steine der anderen Seite erreichen ihn beide, und Summe, Differenz, Produkt oder Quotient ihrer Werte ergibt seinen Wert (Division nur ohne Rest).</li>
+              <li><b>Einschließen:</b> Alle Zielfelder seiner geraden Züge (ohne Fliegen) sind besetzt oder außerhalb des Bretts, und mindestens eines davon ist von der anderen Seite besetzt.</li>
               <li>Die ganze <b>Pyramide</b> fällt nie durch Gleichheit – nur durch eine Rechenart mit ihrem Gesamtwert oder durch Einschließen. Einzelne Teile fallen durch Gleichheit oder eine Rechenart mit ihrem Wert; auf der Pyramide steht die Summe der verbliebenen Teile, und sie verliert die Züge der Formen, die sie nicht mehr enthält.</li>
             </ul>
-            <p>Geschlagene Steine verlassen das Brett. <b>Sieg:</b> <b>Triumph</b> – ist die gegnerische Pyramide ganz geschlagen, drei eigene
-            (nicht fliegend angekommene) Steine in einer Reihe im gegnerischen Lager, deren Werte eine arithmetische (4, 6, 8), geometrische (2, 4, 8)
-            oder harmonische (3, 4, 6) Proportion bilden (vier Steine in einer Reihe oder im Quadrat mit zwei bzw. drei Proportionen: größerer bzw. größter Triumph);
-            <b>Körper</b> – die Hälfte der gegnerischen Steine geschlagen (${goal[0].n}); <b>Güter</b> – ¾ der gegnerischen Gesamtsumme geschlagen
-            (Gerade ${goal[0].sum}, Ungerade ${goal[1].sum}). Wer nicht mehr ziehen kann, verliert.</p>`;
+            <p>Geschlagene Steine verlassen das Brett. <b>Sieg:</b></p>
+            <ul>
+              <li><b>Triumph</b> – sobald die gegnerische Pyramide ganz geschlagen ist: eine lückenlose Reihe aus mindestens 3 Steinen (waagrecht, senkrecht oder diagonal)
+              ganz im gegnerischen Lager, deren beide Endsteine dir gehören (die Steine dazwischen dürfen beiden Seiten gehören) und deren Werte zusammen eine
+              Progression bilden (Reihenfolge egal): arithmetisch (4, 6, 8 oder 2, 4, 6, 8), geometrisch (2, 4, 8) oder harmonisch (3, 4, 6 – die Kehrwerte sind arithmetisch).</li>
+              <li><b>Körper</b> – die Hälfte der gegnerischen Steine geschlagen (${goal[0].n}).</li>
+              <li><b>Güter</b> – ¾ der gegnerischen Gesamtsumme geschlagen (Gerade ${goal[0].sum}, Ungerade ${goal[1].sum}).</li>
+            </ul>
+            <p>Wer nicht mehr ziehen kann, verliert.</p>
+            <p class="muted small">Ursprung unserer Regeln, zum Nachschauen: Fulkes erste Variante in der Rekonstruktion von Mark Waks
+            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>), Aufstellung wie in Fulkes Bild;
+            unsere Runde hat einige Einzelheiten geändert (Fliegen, Triumph, geschlagene Steine).</p>`;
     }
 })();

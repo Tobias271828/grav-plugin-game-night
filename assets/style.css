@@ -225,7 +225,6 @@
 .zk-cell.lastcap { box-shadow: inset 0 0 0 3px rgba(214, 69, 69, .55); }   /* hier wurde gerade geschlagen */
 .zk-cell.target { cursor: pointer; }
 .zk-cell.target::after { content: ""; position: absolute; width: 26%; height: 26%; border-radius: 50%; background: rgba(46, 158, 91, .65); }
-.zk-cell.target.fly::after { background: none; border: 2px dashed rgba(46, 158, 91, .9); width: 34%; height: 34%; }
 .zk-cell.target.capture::after { background: var(--bad); width: 34%; height: 34%; }
 .zk-cell.target.winning::after { background: gold; width: 50%; height: 50%; box-shadow: 0 0 8px gold; }
 

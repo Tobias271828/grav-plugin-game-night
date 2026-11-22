@@ -201,8 +201,8 @@ check($code === 413 || $code === 400, 'zu großer Startzustand abgelehnt', $code
 
 // Zahlenkampf: gültiger Startzustand (wie ZK.initState, gekürzt) und manipulierte Varianten
 $zk = fn(array $stone = []) => [
-    'stones' => [$stone + ['id' => 0, 'side' => 0, 'shape' => 'rd', 'v' => 4, 'r' => 2, 'c' => 5, 'fly' => false],
-                 ['id' => 1, 'side' => 1, 'shape' => 'P', 'v' => 190, 'r' => 14, 'c' => 7, 'fly' => false,
+    'stones' => [$stone + ['id' => 0, 'side' => 0, 'shape' => 'rd', 'v' => 4, 'r' => 2, 'c' => 5],
+                 ['id' => 1, 'side' => 1, 'shape' => 'P', 'v' => 190, 'r' => 14, 'c' => 7,
                   'parts' => [['shape' => 'sq', 'v' => 64], ['shape' => 'rd', 'v' => 16]]]],
     'taken' => [['n' => 0, 'sum' => 0], ['n' => 0, 'sum' => 0]], 'turn' => [0], 'over' => false, 'winner' => null, 'end' => null,
     'last' => null, 'captured' => [], 'triumph' => null, 'log' => []];

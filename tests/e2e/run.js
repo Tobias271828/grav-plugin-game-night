@@ -562,29 +562,27 @@ defineSuite('zahlenkampf', async (browser, players) => {
     await snap([ev, od], 'zk-start');
     await check(await ev.count('.zk-bar') === 4, 'progress bars for bodies and goods on both sides', [ev]);
 
-    // Zug im Browser der Person mit der Spiellogik (ZK) aussuchen: Schlagzug > fliegend (einmal) > zufällig
+    // Zug im Browser der Person mit der Spiellogik (ZK) aussuchen: Schlagzug > zufällig
     let seed = 7;
     const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-    let captures = 0, flights = 0, moves = 0;
+    let captures = 0, moves = 0;
     while (moves < 10) {
         const p = moves % 2 === 0 ? ev : od;
         await p.waitFor(() => !!document.querySelector('.status.my-turn') || current.room.state.over);
         if (await p.page.evaluate(() => current.room.state.over)) break;
-        const choice = await p.page.evaluate((r0, wantFly) => {
+        const choice = await p.page.evaluate(r0 => {
             /* global current, ZK */
             let r = r0;
             const next = () => { r = (r * 9301 + 49297) % 233280 / 233280; return r; };
             const st = current.room.state, side = st.turn[0];
             const opts = [];
             for (const s of st.stones.filter(x => x.side === side)) {
-                for (const m of ZK.movesFor(st, s)) opts.push({ id: s.id, from: [s.r, s.c], to: [m.r, m.c], fly: m.fly });
+                for (const m of ZK.movesFor(st, s)) opts.push({ id: s.id, from: [s.r, s.c], to: [m.r, m.c] });
             }
-            const pick = o => ({ from: o.from, to: o.to, fly: o.fly, caps: ZK.applyMove(st, side, o.id, o.to[0], o.to[1]).captured.length, seat: current.mySeat });
+            const pick = o => ({ from: o.from, to: o.to, caps: ZK.applyMove(st, side, o.id, o.to[0], o.to[1]).captured.length, seat: current.mySeat });
             for (const o of opts) if (ZK.applyMove(st, side, o.id, o.to[0], o.to[1]).captured.length) return pick(o);
-            const flying = opts.filter(o => o.fly);
-            if (wantFly && flying.length) return pick(flying[0]);
             return pick(opts[Math.floor(next() * opts.length)]);
-        }, rnd(), flights === 0);
+        }, rnd());
         // Brett hochkant, eigenes Lager unten (siehe zahlenkampf.js)
         const cellIndex = ([r, c]) => (choice.seat === 0 ? (15 - r) * 8 + c : r * 8 + (7 - c));
         const before = await p.page.evaluate(() => current.room.version);
@@ -592,16 +590,12 @@ defineSuite('zahlenkampf', async (browser, players) => {
         await p.waitFor(() => !!document.querySelector('.zk-stone.selected'));
         const cls = await p.page.evaluate(i => document.querySelectorAll('.zk-board .zk-cell')[i].className, cellIndex(choice.to));
         if (choice.caps) await check(cls.includes('capture'), 'capturing target square is marked red', [p]);
-        if (choice.fly) await check(cls.includes('fly'), 'flying target square is marked', [p]);
         await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.to) });
         await p.waitFor(v => current.room.version > v, before);
         if (choice.caps) captures++;
-        if (choice.fly) flights++;
         moves++;
     }
-    step(`${moves} moves played, ${captures} capturing moves, ${flights} flying moves`);
-    if (flights) await od.waitFor(() => document.querySelector('.zk-log') && document.querySelector('.zk-log').textContent.includes('fliegt'))
-        .then(() => check(true, 'move log mentions a flying move'), () => check(false, 'move log mentions a flying move', [od]));
+    step(`${moves} moves played, ${captures} capturing moves`);
 
     // Schlagen über die Oberfläche: vorbereitete Stellung (zufällig fällt selten etwas), dann zwei Schlagzüge per Klick
     step('prepared position: equality capture (the man leaves the board and is counted), then the 12th man → victory of bodies');
@@ -610,7 +604,7 @@ defineSuite('zahlenkampf', async (browser, players) => {
     await ev.page.evaluate(async () => {
         const st = ZK.initState();
         st.stones = [[0, 'rd', 36, 7, 3], [0, 'rd', 64, 7, 5], [0, 'rd', 2, 0, 0], [1, 'tri', 36, 9, 5], [1, 'sq', 64, 9, 7], [1, 'rd', 3, 15, 0]]
-            .map(([side, shape, v, r, c], id) => ({ id, side, shape, v, r, c, fly: false }));
+            .map(([side, shape, v, r, c], id) => ({ id, side, shape, v, r, c }));
         st.taken = [{ n: 10, sum: 500 }, { n: 0, sum: 0 }];   // zwei Schläge bis zum Sieg nach Körpern
         await act('move', { state: st, version: current.room.version, kind: 'reset' });
     });

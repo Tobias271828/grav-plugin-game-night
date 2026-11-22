@@ -42,7 +42,7 @@ const ZK = (function () {
         const stones = [];
         for (const side of [0, 1]) {
             for (const [r, c, shape, v] of LAYOUT[side]) {
-                const s = { id: stones.length, side, shape, v, r, c, fly: false };
+                const s = { id: stones.length, side, shape, v, r, c };
                 if (shape === 'P') s.parts = PYRAMID_PARTS[side].map(p => ({ ...p }));
                 stones.push(s);
             }
@@ -53,8 +53,8 @@ const ZK = (function () {
             turn: [0],                      // Gerade beginnt
             over: false,
             winner: null,
-            end: null,                      // { type: 'triumph', level, kinds, values } | { type: 'bodies' | 'goods' | 'stuck' } | { type: 'resign', seat }
-            last: null,                     // { from: [r, c], to: [r, c], fly }
+            end: null,                      // { type: 'triumph', kinds, values } | { type: 'bodies' | 'goods' | 'stuck' } | { type: 'resign', seat }
+            last: null,                     // { from: [r, c], to: [r, c] }
             captured: [],                   // Felder der zuletzt geschlagenen Steine (für Hervorhebung)
             triumph: null,                  // Ids der Steine eines Triumphs
             log: [],                        // Zugprotokoll als Daten (Text erst in der Oberfläche)
@@ -96,7 +96,8 @@ const ZK = (function () {
         }).map(([r, c]) => [r, c]);
     }
 
-    /** Fliegende Züge: Dreieck wie der Springer, Quadrat wie ein langer Springer (darf überspringen). */
+    /** Fliegende Züge: Dreieck wie der Springer, Quadrat wie ein langer Springer (darf überspringen).
+     *  Fliegen ist ein ganz normaler Zug: man darf dabei schlagen, und fliegend erreichbare Felder zählen beim Schlagen mit. */
     function flySquares(s) {
         const out = [];
         for (const shape of shapes(s)) {
@@ -106,11 +107,11 @@ const ZK = (function () {
         return out;
     }
 
-    const reaches = (s, t, g) => reachSquares(s, g).some(([r, c]) => r === t.r && c === t.c);
+    const reaches = (s, t, g) => [...reachSquares(s, g), ...flySquares(s)].some(([r, c]) => r === t.r && c === t.c);
 
     /**
      * Welche Steine der Gegenseite schlägt `side` in dieser Stellung? Geschlagen wird ohne Ziehen:
-     * - Gleichheit: ein eigener Stein mit gleichem Wert erreicht ihn;
+     * - Gleichheit: ein eigener Stein mit gleichem Wert erreicht ihn (gewöhnlich oder fliegend);
      * - Addition/Subtraktion/Multiplikation/Division: zwei eigene Steine erreichen ihn beide;
      * - Einschließen: alle Zielfelder seiner gewöhnlichen Züge sind besetzt oder außerhalb des Bretts,
      *   und mindestens einer der blockierenden Steine gehört `side`.
@@ -183,50 +184,49 @@ const ZK = (function () {
         return entries;
     }
 
-    // ------------------------------------------------------------------ Proportionen und Triumph
+    // ------------------------------------------------------------------ Progressionen und Triumph
 
-    /** Proportionen dreier verschiedener Werte: arithmetisch, geometrisch, harmonisch. */
-    function proportions(vals) {
-        const [a, b, c] = [...vals].sort((x, y) => x - y);
-        const kinds = [];
-        if (a === b || b === c) return kinds;
-        if (b - a === c - b) kinds.push('arith');
-        if (b * b === a * c) kinds.push('geo');
-        if (c * (b - a) === a * (c - b)) kinds.push('harm');
-        return kinds;
-    }
-
-    function kindsOf(vals) {
-        if (vals.length === 3) return proportions(vals);
-        const set = new Set();
-        for (let skip = 0; skip < vals.length; skip++) proportions(vals.filter((_, i) => i !== skip)).forEach(k => set.add(k));
-        return [...set];
+    /**
+     * Bilden die Werte (Reihenfolge egal, alle verschieden) zusammen eine Progression? Gibt 'arith', 'geo', 'harm'
+     * oder null zurück: arithmetisch (2, 4, 6, 8), geometrisch (2, 4, 8, 16), harmonisch (3, 4, 6 – Kehrwerte arithmetisch).
+     */
+    function progression(vals) {
+        const v = [...vals].sort((x, y) => x - y);
+        if (v.length < 3 || v.some((x, i) => i && x === v[i - 1])) return null;
+        const all = test => v.slice(2).every((c, i) => test(v[i], v[i + 1], c));
+        if (all((a, b, c) => b - a === c - b)) return 'arith';
+        if (all((a, b, c) => b * b === a * c)) return 'geo';
+        if (all((a, b, c) => 2 * a * c === b * (a + c))) return 'harm';
+        return null;
     }
 
     /**
-     * Triumph (nur nachdem die gegnerische Pyramide ganz geschlagen ist): im gegnerischen Lager eigene Steine, die
-     * nicht fliegend angekommen sind – drei in einer Reihe mit einer Proportion (großer Triumph), vier in einer Reihe
-     * oder im Quadrat mit zwei (größerer) bzw. allen drei Proportionen (größter Triumph).
+     * Triumph für `side` (nur nachdem die gegnerische Pyramide ganz geschlagen ist): eine lückenlose Reihe aus
+     * mindestens drei Steinen (waagrecht, senkrecht oder diagonal) ganz im gegnerischen Lager, deren beide Endsteine
+     * `side` gehören (die Steine dazwischen dürfen beiden Seiten gehören) und deren Werte zusammen eine Progression bilden.
+     * Gibt die längste solche Reihe zurück: { kind, values, ids } oder null.
      */
     function findTriumph(state, side) {
         const enemy = 1 - side;
         if (state.stones.some(s => s.side === enemy && s.shape === 'P')) return null;
         const g = grid(state);
-        const ok = (r, c) => inBoard(r, c) && zone(r) === enemy && g[r][c] && g[r][c].side === side && !g[r][c].fly;
+        const ok = (r, c) => inBoard(r, c) && zone(r) === enemy && g[r][c] !== null;
         let best = null;
-        const consider = cells => {
-            if (!cells.every(([r, c]) => ok(r, c))) return;
-            const stones = cells.map(([r, c]) => g[r][c]);
-            const kinds = kindsOf(stones.map(value));
-            const level = cells.length === 3 ? (kinds.length ? 1 : 0) : (kinds.length >= 3 ? 3 : kinds.length >= 2 ? 2 : 0);
-            if (level && (!best || level > best.level)) best = { level, kinds, values: stones.map(value), ids: stones.map(s => s.id) };
-        };
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
+                if (!ok(r, c) || g[r][c].side !== side) continue;
                 for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
-                    for (const n of [3, 4]) consider(Array.from({ length: n }, (_, i) => [r + dr * i, c + dc * i]));
+                    const line = [g[r][c]];
+                    for (let i = 1; ok(r + dr * i, c + dc * i); i++) {
+                        const s = g[r + dr * i][c + dc * i];
+                        line.push(s);
+                        if (line.length < 3 || s.side !== side) continue;
+                        const kind = progression(line.map(value));
+                        if (kind && (!best || line.length > best.ids.length)) {
+                            best = { kind, values: line.map(value), ids: line.map(x => x.id) };
+                        }
+                    }
                 }
-                consider([[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]);
             }
         }
         return best;
@@ -234,25 +234,17 @@ const ZK = (function () {
 
     // ------------------------------------------------------------------ Züge
 
-    /** Alle Züge eines Steins: [{ r, c, fly }]. Fliegend darf man nichts schlagen. */
+    /** Alle Züge eines Steins auf freie Felder, gewöhnlich oder fliegend: [{ r, c }]. */
     function movesFor(state, stone) {
         const g = grid(state);
         const out = [];
-        for (const [r, c] of reachSquares(stone, g)) if (g[r][c] === null) out.push({ r, c, fly: false });
-        for (const [r, c] of flySquares(stone)) {
-            if (g[r][c] !== null || out.some(m => m.r === r && m.c === c)) continue;
-            const moved = { ...state, stones: state.stones.map(s => (s.id === stone.id ? { ...s, r, c } : s)) };
-            if (!findCaptures(moved, stone.side).length) out.push({ r, c, fly: true });
+        for (const [r, c] of [...reachSquares(stone, g), ...flySquares(stone)]) {
+            if (g[r][c] === null && !out.some(m => m.r === r && m.c === c)) out.push({ r, c });
         }
         return out;
     }
 
-    /** Kann `side` überhaupt ziehen? Erst die (billigen) gewöhnlichen Züge prüfen, nur notfalls die fliegenden. */
-    function hasAnyMove(state, side) {
-        const g = grid(state);
-        const own = state.stones.filter(s => s.side === side);
-        return own.some(s => reachSquares(s, g).some(([r, c]) => g[r][c] === null)) || own.some(s => movesFor(state, s).length);
-    }
+    const hasAnyMove = (state, side) => state.stones.some(s => s.side === side && movesFor(state, s).length);
 
     /** Sieg für `side` nach Körpern oder Gütern? */
     function countVictory(state, side) {
@@ -274,14 +266,16 @@ const ZK = (function () {
 
         let winner = side;
         let end = null;
-        const tri = findTriumph(state, side);
-        if (tri) {
-            state.triumph = tri.ids;
-            end = { type: 'triumph', level: tri.level, kinds: tri.kinds, values: tri.values };
-        } else {
-            end = countVictory(state, side);
-            if (!end && (end = countVictory(state, 1 - side))) winner = 1 - side;   // durch die Gegenschläge
-        }
+        const victory = who => {
+            const tri = findTriumph(state, who);
+            if (tri) {
+                state.triumph = tri.ids;
+                return { type: 'triumph', kind: tri.kind, values: tri.values };
+            }
+            return countVictory(state, who);
+        };
+        end = victory(side);
+        if (!end && (end = victory(1 - side))) winner = 1 - side;   // durch die Gegenschläge
         if (!end && !hasAnyMove(state, 1 - side)) end = { type: 'stuck' };
         if (end) {
             state.over = true;
@@ -303,16 +297,15 @@ const ZK = (function () {
         if (!mv) return null;
         state.captured = [];
         state.triumph = null;
-        state.last = { from: [stone.r, stone.c], to: [r, c], fly: mv.fly };
+        state.last = { from: [stone.r, stone.c], to: [r, c] };
         stone.r = r;
         stone.c = c;
-        stone.fly = mv.fly;
-        return finishTurn(state, side, { side, stone: { v: value(stone), shape: stone.shape }, fly: mv.fly });
+        return finishTurn(state, side, { side, stone: { v: value(stone), shape: stone.shape } });
     }
 
     return {
         ROWS, COLS, GOAL, TOTAL, PYRAMID_PARTS, initState, movesFor, findCaptures, findTriumph,
-        proportions, applyMove, value, zone,
+        progression, applyMove, value, zone,
     };
 })();
 
