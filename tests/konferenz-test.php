@@ -380,3 +380,24 @@ check($code === 400, 'sich selbst herausnehmen geht nicht (dafür: „Konferenz 
 [$code, $j] = $rm(4);
 check($code === 200 && !$j['room']['state']['players'][2]['alive'] && !(array)$j['room']['state']['removals'],
     'mit der dritten Bestätigung (Hälfte von 5, aufgerundet) ist die Person draußen', [$code, $j['room']['state']['removals'] ?? $j]);
+
+// Englische Fehlermeldungen: jede Meldung des Servers hat eine Übersetzung
+$missing = [];
+foreach (glob(__DIR__ . '/../core/*.php') as $f) {
+    preg_match_all("/fail\('([^']*)'/", file_get_contents($f), $m);
+    foreach ($m[1] as $msg) {
+        if (!isset(GameNight\EN[$msg])) {
+            $missing[] = basename($f) . ": $msg";
+        }
+    }
+}
+$c = ['konstr' => 1, 'roles' => []];
+foreach ([GameNight\kf_config_error($c, 3), GameNight\kf_config_error(['konstr' => 3] + $c, 6),
+          GameNight\kf_config_error(['roles' => array_fill(0, 5, 'mathe')] + $c, 5)] as $msg) {
+    if ($msg === null || !isset(GameNight\EN[$msg])) {
+        $missing[] = 'kf_config_error: ' . var_export($msg, true);
+    }
+}
+check(!$missing, 'alle Fehlermeldungen haben eine englische Übersetzung', $missing);
+[$code, $j] = api('party', ['action' => 'game', 'room' => $ar, 'op' => 'vote', 'target' => -1, 'round' => 1, 'token' => $at[0], 'lang' => 'en']);
+check($code === 409 && ($j['error'] ?? '') === 'There is no vote right now', 'Mathekonferenz: Fehlermeldung auf Englisch', [$code, $j]);

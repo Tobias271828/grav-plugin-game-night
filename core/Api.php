@@ -165,6 +165,22 @@ const EN = [
     'Bitte einen Begriff eingeben' => 'Please enter a term',
     'Gerade wird nicht geraten' => 'Nobody is guessing right now',
     'Für dich gibt es keinen Begriff' => 'There is no term for you',
+    // Mathekonferenz (Konferenz.php)
+    'Mindestens 4 Personen müssen mitspielen' => 'At least 4 people must play',
+    'Ungültige Zahl an Konstruktivist*innen' => 'Invalid number of constructivists',
+    'Zu viele Rollen für die Zahl der Mitspielenden' => 'Too many roles for the number of players',
+    'Ungültige Rollenverteilung' => 'Invalid distribution of roles',
+    'Gerade ist keine Nachtaktion möglich' => 'No night action is possible right now',
+    'Du hast in dieser Nacht nichts (mehr) zu tun' => 'You have nothing (more) to do tonight',
+    'Du hast in dieser Nacht nichts zu tun' => 'You have nothing to do tonight',
+    'Erst vorschlagen, dann auswählen' => 'Propose first, then choose',
+    'Nicht zweimal hintereinander denselben Beweis' => 'Not the same proof twice in a row',
+    'Bitte zwei verschiedene Personen wählen' => 'Please choose two different people',
+    'Die Konstruktivist*innen haben noch nicht gewählt' => 'The constructivists have not chosen yet',
+    'Gerade nicht möglich' => 'Not possible right now',
+    'Gerade wird nicht abgestimmt' => 'There is no vote right now',
+    'Die Abstimmung ist schon vorbei – bitte noch einmal prüfen.' => 'The vote is already over – please check again.',
+    'Nur Mitspielende können das' => 'Only players can do that',
 ];
 
 function lang(?string $set = null): string
