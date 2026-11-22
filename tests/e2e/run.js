@@ -556,85 +556,119 @@ defineSuite('zahlenkampf', async (browser, players) => {
     await od.goto(url);
     await od.takeSeat(1);
     await ev.waitText('Otto');
-    await ev.checkNoHScroll('zahlenkampf (mobile)');
 
-    // Zug im Browser der Person mit der Spiellogik (ZK) aussuchen: Schlagzug > Einsetzen > Zug, der einen Schlag vorbereitet > zufällig
+    step('victory conditions: Bodies set to 2 men, Goods off – both see the same settings');
+    await ev.waitText('Wie wird gewonnen?');
+    await ev.checkNoHScroll('zahlenkampf setup (mobile)');
+    const settings = () => ev.page.evaluate(() => current.room.state.settings);
+    for (let i = 0; i < 10; i++) {
+        const before = (await settings()).bodies;
+        await ev.clickFn(() => [...document.querySelectorAll('.zk-setting')].find(r => r.textContent.includes('Körper'))
+            .querySelectorAll('.zk-stepper button')[0], 'bodies −');
+        await ev.waitFor(b => current.room.state.settings.bodies === b - 1, before);
+    }
+    await ev.click('.zk-setting .tb-chip.on', 'Güter');
+    await ev.waitFor(() => current.room.state.settings.goods === 0);
+    await od.waitFor(() => current.room.state.settings.bodies === 2 && current.room.state.settings.goods === 0);
+    await check(JSON.stringify(await settings()) === JSON.stringify({ triumph: true, bodies: 2, goods: 0 }), 'settings saved', [ev]);
+    await od.click('.tb .btn.primary', 'Spiel starten');
+    await all(players, p => p.waitFor(() => !!document.querySelector('.zk-board')));
+    await ev.checkNoHScroll('zahlenkampf board (mobile)');
+    await snap([ev, od], 'zk-start');
+
+    // Zug im Browser der Person mit der Spiellogik (ZK) aussuchen: Schlagzug > fliegend (einmal) > zufällig
     let seed = 7;
     const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-    let captures = 0, drops = 0, moves = 0;
-    const MAX_MOVES = 80;
-
-    while (moves < MAX_MOVES && (captures < 2 || drops < 1)) {
+    let captures = 0, flights = 0, moves = 0;
+    while (moves < 10) {
         const p = moves % 2 === 0 ? ev : od;
-        await p.waitFor(() => !!document.querySelector('.status.my-turn'));
-        const choice = await p.page.evaluate(r => {
+        await p.waitFor(() => !!document.querySelector('.status.my-turn') || current.room.state.over);
+        if (await p.page.evaluate(() => current.room.state.over)) break;
+        const choice = await p.page.evaluate((r0, wantFly) => {
             /* global current, ZK */
+            let r = r0;
+            const next = () => { r = (r * 9301 + 49297) % 233280 / 233280; return r; };
             const st = current.room.state, side = st.turn[0];
-            if (st.reserve[side].length) {
-                const sq = ZK.dropSquares(st, side);
-                if (sq.length) { const q = sq[Math.floor(r * sq.length)]; return { drop: 0, to: [q.r, q.c], seat: current.mySeat }; }
-            }
             const opts = [];
             for (const s of st.stones.filter(x => x.side === side)) {
-                for (const m of ZK.movesFor(st, s)) {
-                    const ns = ZK.applyMove(st, side, s.id, m.r, m.c);
-                    if (ns) opts.push({ id: s.id, from: [s.r, s.c], to: [m.r, m.c], caps: ns.captured.length, ns });
-                }
+                for (const m of ZK.movesFor(st, s)) opts.push({ id: s.id, from: [s.r, s.c], to: [m.r, m.c], fly: m.fly });
             }
-            const cap = opts.find(o => o.caps);
-            if (cap) return { from: cap.from, to: cap.to, caps: cap.caps, seat: current.mySeat };
-            // Vorbereitung: nach dem Zug hätte ich (wenn die Gegenseite nichts tut) einen Schlag
-            const prep = opts.filter(o => {
-                const s2 = o.ns;
-                return s2.stones.filter(x => x.side === side).some(s => ZK.movesFor(s2, s).some(m => {
-                    const n2 = ZK.applyMove(s2, side, s.id, m.r, m.c);
-                    return n2 && n2.captured.length;
-                }));
-            });
-            const pool = prep.length ? prep : opts;
-            const o = pool[Math.floor(r * pool.length)];
-            return { from: o.from, to: o.to, caps: 0, seat: current.mySeat };
-        }, rnd());
-        // Brett der sitzenden Person ist hochkant, eigenes Lager unten (siehe zahlenkampf.js)
-        const cellIndex = ([r, c]) => (choice.seat === 0 ? (15 - c) * 8 + r : c * 8 + (7 - r));
+            const pick = o => ({ from: o.from, to: o.to, fly: o.fly, caps: ZK.applyMove(st, side, o.id, o.to[0], o.to[1]).captured.length, seat: current.mySeat });
+            for (const o of opts) if (ZK.applyMove(st, side, o.id, o.to[0], o.to[1]).captured.length) return pick(o);
+            const flying = opts.filter(o => o.fly);
+            if (wantFly && flying.length) return pick(flying[0]);
+            return pick(opts[Math.floor(next() * opts.length)]);
+        }, rnd(), flights === 0);
+        // Brett hochkant, eigenes Lager unten (siehe zahlenkampf.js)
+        const cellIndex = ([r, c]) => (choice.seat === 0 ? (15 - r) * 8 + c : r * 8 + (7 - c));
         const before = await p.page.evaluate(() => current.room.version);
-        if (choice.drop !== undefined) {
-            await p.click('.zk-res-btn', null, { nth: 0 });
-            await p.waitFor(() => !!document.querySelector('.zk-res-btn.selected'));
-            await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.to) });
-            drops++;
-        } else {
-            await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.from) });
-            await p.waitFor(() => !!document.querySelector('.zk-stone.selected'));
-            if (choice.caps) {
-                const cls = await p.page.evaluate(i => document.querySelectorAll('.zk-board .zk-cell')[i].className, cellIndex(choice.to));
-                await check(cls.includes('capture'), 'capturing target square is marked red', [p]);
-            }
-            await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.to) });
-            if (choice.caps) captures++;
-        }
-        await p.waitFor(v => current.room.version > v && !document.querySelector('.status.my-turn'), before);
+        await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.from) });
+        await p.waitFor(() => !!document.querySelector('.zk-stone.selected'));
+        const cls = await p.page.evaluate(i => document.querySelectorAll('.zk-board .zk-cell')[i].className, cellIndex(choice.to));
+        if (choice.caps) await check(cls.includes('capture'), 'capturing target square is marked red', [p]);
+        if (choice.fly) await check(cls.includes('fly'), 'flying target square is marked', [p]);
+        await p.click('.zk-board .zk-cell', null, { nth: cellIndex(choice.to) });
+        await p.waitFor(v => current.room.version > v, before);
+        if (choice.caps) captures++;
+        if (choice.fly) flights++;
         moves++;
-        if (await p.page.evaluate(() => current.room.state.over)) break;
     }
-    step(`${moves} moves played, ${captures} capturing moves, ${drops} drops from reserve`);
-    if (!captures) note('zahlenkampf: no capture happened within the move limit (test could not exercise captures)');
-    if (!drops) note('zahlenkampf: no drop from reserve happened within the move limit');
+    step(`${moves} moves played, ${captures} capturing moves, ${flights} flying moves`);
+    if (flights) await od.waitFor(() => document.querySelector('.zk-log') && document.querySelector('.zk-log').textContent.includes('fliegt'))
+        .then(() => check(true, 'move log mentions a flying move'), () => check(false, 'move log mentions a flying move', [od]));
 
-    // Beide sehen denselben Stand und dasselbe Protokoll
-    const [s1, s2] = await Promise.all([ev, od].map(p => p.page.evaluate(() => JSON.stringify(current.room.state))));
+    // Schlagen über die Oberfläche: vorbereitete Stellung (zufällig fällt selten etwas), dann zwei Schlagzüge per Klick
+    step('prepared position: equality capture, prisoner changes sides, second capture → victory of bodies (2 men)');
+    const odVersion = await od.page.evaluate(() => current.room.version);
+    await ev.waitFor(v => current.room.version >= v, odVersion);   // beide Browser auf demselben Stand
+    await ev.page.evaluate(async () => {
+        const st = ZK.start(current.room.state);
+        st.stones = [[0, 'rd', 36, 7, 3], [0, 'rd', 64, 7, 5], [0, 'rd', 2, 0, 0], [1, 'tri', 36, 9, 5], [1, 'sq', 64, 9, 7], [1, 'rd', 3, 15, 0]]
+            .map(([side, shape, v, r, c], id) => ({ id, side, shape, v, r, c, fly: false, conv: false }));
+        st.nextId = 6;
+        await act('move', { state: st, version: current.room.version, kind: 'reset' });
+    });
+    await all(players, q => q.waitFor(() => current.room.state.stones.length === 6));
+    const play = async (p, from, to) => {
+        const seat = await p.page.evaluate(() => current.mySeat);
+        const idx = ([r, c]) => (seat === 0 ? (15 - r) * 8 + c : r * 8 + (7 - c));
+        const before = await p.page.evaluate(() => current.room.version);
+        await p.click('.zk-board .zk-cell', null, { nth: idx(from) });
+        await p.waitFor(() => !!document.querySelector('.zk-stone.selected'));
+        const cls = await p.page.evaluate(i => document.querySelectorAll('.zk-board .zk-cell')[i].className, idx(to));
+        await p.click('.zk-board .zk-cell', null, { nth: idx(to) });
+        await all(players, q => q.waitFor(v => current.room.version > v, before));
+        return cls;
+    };
+    let cls = await play(ev, [7, 3], [8, 4]);
+    await check(cls.includes('capture'), 'capturing target square is marked red', [ev]);
+    await check(await od.page.evaluate(() => current.room.state.stones.some(s => s.side === 0 && s.conv && s.v === 36 && s.r === 0)),
+        'captured man changes sides and stands at the back of the captor\'s camp', [od]);
+    captures++;
+    await play(od, [15, 0], [14, 1]);
+    cls = await play(ev, [7, 5], [8, 6]);
+    await check(cls.includes('winning'), 'winning target square is marked', [ev]);
+    captures++;
+
     await sleep(1500);
     const [l1, l2] = await Promise.all([ev, od].map(p => p.text('.zk-log')));
     await check(l1 === l2, 'both players see the same move log', [ev, od]);
-    if (drops) await check(l1.includes('eingesetzt'), 'move log mentions the drop', [ev]);
     if (captures) await check(l1.includes('schlägt'), 'move log mentions a capture', [ev]);
-    void s1; void s2;
+    const over = await ev.page.evaluate(() => current.room.state.over);
+    if (captures >= 2) await check(over && (await ev.text('.status')).includes('Körpern'), 'victory of bodies after 2 captured men', [ev]);
     await ev.checkNoHScroll('zahlenkampf after moves (mobile)');
     await snap([ev, od], 'zk');
 
-    step('resign');
-    const p = (await ev.myTurn()) ? od : ev;   // auch wer nicht dran ist, darf aufgeben
-    await p.click('.controls .btn', 'Aufgeben');
+    step('new round keeps the victory conditions; resign');
+    if (!over) await ev.click('.controls .btn', 'Aufgeben');
+    await all(players, q => q.waitFor(() => current.room.state.over));
+    await ev.click('.controls .btn.primary', 'Neue Runde');
+    await all(players, q => q.waitText('Wie wird gewonnen?'));
+    await check((await ev.page.evaluate(() => current.room.state.settings.bodies)) === 2, 'settings kept for the next round', [ev]);
+    await check(!(await ev.exists('.controls .btn:not(.primary)')) || !(await ev.text('.controls')).includes('Aufgeben'), 'no “resign” before the start', [ev]);
+    await ev.click('.tb .btn.primary', 'Spiel starten');
+    await all(players, q => q.waitFor(() => !!document.querySelector('.zk-board')));
+    await od.click('.controls .btn', 'Aufgeben');
     await all(players, q => q.waitText('gibt auf'));
     await check((await ev.text('.status')).includes('gewinnt'), 'winner is named after resign', [ev]);
 });

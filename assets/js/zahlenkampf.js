@@ -3,14 +3,18 @@
 
 (function () {
     const SIDES = [t('Gerade', 'Evens'), t('Ungerade', 'Odds')];
-    const KIND_NAME = LANG === 'en'
-        ? { b: 'base number', m: 'multiple', sp1: 'superparticular', sp2: 'superparticular', st1: 'superpartient', st2: 'superpartient' }
-        : { b: 'Grundzahl', m: 'Vielfaches', sp1: 'Überteilige', sp2: 'Überteilige', st1: 'Mehrfachteilige', st2: 'Mehrfachteilige' };
+    const SHAPE_NAME = LANG === 'en'
+        ? { rd: 'round', tri: 'triangle', sq: 'square', K: 'king' }
+        : { rd: 'Runde', tri: 'Dreieck', sq: 'Quadrat', K: 'König' };
+    const SHAPE_CLASS = { rd: 'round', tri: 'tri', sq: 'square', K: 'pyramid' };
+    const MOVE_TXT = LANG === 'en'
+        ? { rd: '1 square diagonally', tri: '2 squares straight or flying like a knight', sq: '3 squares straight or flying like a long knight' }
+        : { rd: '1 Feld diagonal', tri: '2 Felder gerade oder fliegend wie der Springer', sq: '3 Felder gerade oder fliegend wie ein langer Springer' };
+    const PROP_NAME = LANG === 'en' ? { arith: 'arithmetic', geo: 'geometric', harm: 'harmonic' } : { arith: 'arithmetisch', geo: 'geometrisch', harm: 'harmonisch' };
 
-    // Ein Pyramiden-Emoji gibt es nicht – deshalb eine kleine Stufenpyramide wie die Pyramiden-Steine
+    // Ein Pyramiden-Emoji gibt es nicht – deshalb eine kleine Stufenpyramide wie der König auf dem Brett
     function pyramidIcon() {
         // Fester SVG-Text (keine Benutzereingaben); der Browser ordnet <svg> beim Einlesen selbst richtig ein.
-        // Stufenpyramide: nur waagrechte und senkrechte Kanten (alle Ecken 90°)
         const wrap = document.createElement('span');
         wrap.innerHTML = '<svg viewBox="0 0 32 32" class="icon-svg" aria-hidden="true">'
             + '<path d="M2 29 H30 V24 H27 V19 H24 V14 H21 V9 H18 V4 H14 V9 H11 V14 H8 V19 H5 V24 H2 Z"'
@@ -18,62 +22,50 @@
         return wrap.firstChild;
     }
 
-    const stoneName = s => (s.kind === 'P' ? t(`Pyramide ${s.v}`, `pyramid ${s.v}`) : String(s.v));
+    const stoneName = s => (s.of === 'K' ? t(`Königsteil ${s.v}`, `king's part ${s.v}`) : s.shape === 'K' ? t(`König ${s.v}`, `king ${s.v}`) : String(s.v));
 
     function whyText(w) {
-        if (w.t === 'encounter') return t('Begegnung', 'encounter');
-        if (w.t === 'assault') return t(`Angriff: ${w.a} × ${w.n} = ${w.a * w.n}`, `assault: ${w.a} × ${w.n} = ${w.a * w.n}`);
-        if (w.t === 'sum') return t('Belagerung: ', 'siege: ') + w.nums.join(' + ') + ' = ' + w.nums.reduce((x, y) => x + y, 0);
-        if (w.t === 'prod') return t('Belagerung: ', 'siege: ') + w.nums.join(' × ') + ' = ' + w.nums.reduce((x, y) => x * y, 1);
-        return t('Primzahl eingeschlossen', 'prime surrounded');
+        return {
+            eq: t('Gleichheit', 'equality'),
+            add: `${w.a} + ${w.b}`,
+            sub: `${w.a} − ${w.b}`,
+            mul: `${w.a} × ${w.b}`,
+            div: `${w.a} : ${w.b}`,
+            obl: t('eingeschlossen', 'surrounded'),
+        }[w.t] || '';
     }
 
     /** Ein Eintrag des Zugprotokolls als Satz in der Seitensprache. */
     function logText(e) {
-        let text = e.act === 'drop'
-            ? t(`${stoneName(e.stone)} wird eingesetzt`, `${stoneName(e.stone)} is brought back in`)
-            : t(`${stoneName(e.stone)} zieht`, `${stoneName(e.stone)} moves`);
-        for (const c of e.caps) {
-            text += t(` · schlägt ${stoneName(c.stone)} (${whyText(c.why)})`, ` · captures ${stoneName(c.stone)} (${whyText(c.why)})`);
-        }
+        let text = e.fly ? t(`${stoneName(e.stone)} fliegt`, `${stoneName(e.stone)} flies`) : t(`${stoneName(e.stone)} zieht`, `${stoneName(e.stone)} moves`);
+        for (const c of e.caps) text += t(` · schlägt ${stoneName(c.stone)} (${whyText(c.why)})`, ` · captures ${stoneName(c.stone)} (${whyText(c.why)})`);
         return text;
     }
 
     function endText(end) {
         if (!end) return '';
-        if (end.type === 'harmony') {
-            const v = end.values.join(' – ');
-            return end.kind === 'arith'
-                ? t(`Sieg durch arithmetische Harmonie ${v}!`, `Victory by arithmetic harmony ${v}!`)
-                : t(`Sieg durch harmonische Harmonie ${v}!`, `Victory by harmonic progression ${v}!`);
+        if (end.type === 'triumph') {
+            const name = [null, t('Großer Triumph', 'Great triumph'), t('Größerer Triumph', 'Greater triumph'), t('Größter Triumph', 'Greatest triumph')][end.level];
+            return `${name}: ${end.values.join(' – ')} (${end.kinds.map(k => PROP_NAME[k]).join(', ')})!`;
         }
-        if (end.type === 'stuck') return t('Die Gegenseite kann nicht mehr ziehen.', 'The opponent cannot move anymore.');
+        if (end.type === 'bodies') return t(`Sieg nach Körpern: ${end.n} Steine geschlagen.`, `Victory of bodies: ${end.n} men captured.`);
+        if (end.type === 'goods') return t(`Sieg nach Gütern: Steine im Wert von ${end.sum} geschlagen.`, `Victory of goods: men worth ${end.sum} captured.`);
+        if (end.type === 'stuck') return t('Die Gegenseite kann nicht mehr ziehen.', 'The opponent cannot move any more.');
         if (end.type === 'resign') return t(`${SIDES[end.seat]} gibt auf.`, `${SIDES[end.seat]} resign.`);
         return '';
     }
-    const SHAPE = { b: 'round small', m: 'round', sp1: 'tri', sp2: 'tri', st1: 'square', st2: 'square', P: 'pyramid' };
-    const RANGE_TXT = { b: '1', m: '2', sp1: '3', sp2: '3', st1: '4', st2: '4', P: '1–4' };
 
-    // lokale Auswahl: Stein auf dem Brett oder Stein aus dem Vorrat
-    let sel = { version: 0, stone: null, drop: null };
-
-    // Ab dieser Breite sehen auch Zuschauende das Brett hochkant (quer passt es nur mit Scrollen)
-    const NARROW = '(max-width: 700px)';
-    let lastRender = null;
-    if (window.matchMedia) {
-        const mq = window.matchMedia(NARROW);
-        const onChange = () => { if (lastRender && lastRender.root.isConnected) lastRender.game.render(lastRender.root, lastRender.ctx); };
-        if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
-    }
+    // lokale Auswahl (gilt nur für diesen Tisch und Stand)
+    let sel = { version: '', stone: null };
 
     function stoneEl(s, extra = '') {
-        const title = s.kind === 'P'
-            ? t(`Pyramide ${s.v} (schlagbar auch über ihre Basis ${s.base}), zieht ${RANGE_TXT.P} Felder`,
-                `Pyramid ${s.v} (can also be captured via its base ${s.base}), moves ${RANGE_TXT.P} squares`)
-            : t(`${s.v} – ${KIND_NAME[s.kind]}, zieht ${RANGE_TXT[s.kind]} Felder`, `${s.v} – ${KIND_NAME[s.kind]}, moves ${RANGE_TXT[s.kind]} squares`)
-              + (ZK.isPrime(s.v) ? t(', Primzahl', ', prime') : '');
-        return h('span', { class: `zk-stone side${s.side} ${SHAPE[s.kind]} ${s.conv ? 'conv' : ''} ${extra}`, title },
-            h('span', { class: 'zk-num' }, s.v));
+        const title = s.shape === 'K'
+            ? t(`König ${ZK.value(s)} aus ${s.parts.map(p => `${SHAPE_NAME[p.shape]} ${p.v}`).join(', ')}; zieht wie seine Teile`,
+                `King ${ZK.value(s)} made of ${s.parts.map(p => `${SHAPE_NAME[p.shape]} ${p.v}`).join(', ')}; moves like its parts`)
+            : `${s.v} – ${SHAPE_NAME[s.shape]}, ${MOVE_TXT[s.shape]}` + (s.conv ? t(' (Gefangene*r)', ' (prisoner)') : '');
+        const long = (s.shape === 'K' ? ZK.value(s) : s.v) >= 100 ? 'long' : '';   // dreistellig: kleinere Schrift
+        return h('span', { class: `zk-stone side${s.side} ${SHAPE_CLASS[s.shape]} ${s.conv ? 'conv' : ''} ${long} ${extra}`, title },
+            h('span', { class: 'zk-num' }, s.shape === 'K' ? ZK.value(s) : s.v));
     }
 
     registerGame({
@@ -81,56 +73,20 @@
         name: t('Zahlenkampfspiel', 'Rithmomachia'),
         icon: pyramidIcon,
         desc: t('Gewinne durch Harmonie!', 'Win through harmony!'),
-        wip: true,   // Regeln müssen noch exakt festgelegt werden
+        wip: true,   // Regeln werden noch erprobt
         seats: SIDES,
-        rules: LANG === 'en' ? `<p>Board of 8 × 16 squares. <b>Evens</b> (light stones, base numbers 2, 4, 6, 8) play on the left and start,
-            <b>Odds</b> (dark stones, base numbers 3, 5, 7, 9) play on the right. Each side has 24 stones:
-            base number <i>n</i> (●&nbsp;small), <i>n²</i> (●), the superparticulars <i>n(n+1)</i> and <i>(n+1)²</i> (▲)
-            and the superpartients <i>(n+1)(2n+1)</i> and <i>(2n+1)²</i> (■). The pyramids are 91 (Evens) and 190 (Odds).</p>
-            <p><b>Moving:</b> base numbers exactly 1 square, multiples exactly 2, superparticulars exactly 3, superpartients exactly 4 –
-            horizontally/vertically, straight or with one right-angle turn, only across empty squares. The pyramid moves 1 to 4 squares.
-            Instead of moving you may place a <b>captured stone</b> on an empty square of your own half; it then plays for you.</p>
-            <p><b>Capturing</b> (applied automatically after your move, to all enemy stones):</p>
-            <ul>
-              <li><b>Encounter:</b> a stone that moves exactly onto an enemy stone of equal value captures it.</li>
-              <li><b>Assault:</b> if one of your stones and an enemy stone are in the same row/column with only empty squares between them and
-                  <i>your value × number of squares between = enemy value</i>, the enemy stone is captured (e.g. 2 with 8 squares between captures 16).</li>
-              <li><b>Siege:</b> if at least two of your stones border an enemy stone (horizontally/vertically) and
-                  the sum or product of <i>all</i> your bordering stones equals its value, it is captured.</li>
-              <li><b>Primes</b> are also captured when all neighbouring squares (horizontally/vertically) are occupied by your stones.</li>
-              <li><b>Pyramids</b> are captured like other stones, but also when the value of their base matches (36 for 91, 64 for 190).</li>
-            </ul>
-            <p><b>Victory:</b> the first to place three of their own stones directly next to each other in a line in the <b>enemy camp</b>
-            (horizontally, vertically or diagonally) whose values form an <b>arithmetic</b> (e.g. 4, 6, 8) or <b>harmonic</b> progression
-            (e.g. 3, 4, 6: (6−4):(4−3) = 6:3) wins. A harmonic progression must include at least one captured stone that was brought back in.
-            A player who cannot move loses.</p>
-            <p class="small muted">Simplified version based on the German Wikipedia article “Zahlenkampfspiel”. Announcing the first harmony stone is omitted.
-            Tip: a red target square means the move captures something – hover over it for details.</p>` : `<p>Brett mit 8 × 16 Feldern. <b>Gerade</b> (helle Steine, Grundzahlen 2, 4, 6, 8) spielt links und beginnt,
-            <b>Ungerade</b> (dunkle Steine, Grundzahlen 3, 5, 7, 9) spielt rechts. Jede Seite hat 24 Steine:
-            Grundzahl <i>n</i> (●&nbsp;klein), <i>n²</i> (●), die Überteiligen <i>n(n+1)</i> und <i>(n+1)²</i> (▲)
-            sowie die Mehrfachteiligen <i>(n+1)(2n+1)</i> und <i>(2n+1)²</i> (■). Die Pyramiden sind 91 (Gerade) und 190 (Ungerade).</p>
-            <p><b>Ziehen:</b> Grundzahlen genau 1 Feld, Vielfache genau 2, Überteilige genau 3, Mehrfachteilige genau 4 –
-            waagrecht/senkrecht, gerade oder mit einem rechten Winkel, nur über freie Felder. Die Pyramide zieht 1 bis 4 Felder.
-            Statt zu ziehen darf man einen <b>erbeuteten Stein</b> auf ein freies Feld der eigenen Hälfte setzen; er spielt dann für einen.</p>
-            <p><b>Schlagen</b> (wird nach deinem Zug automatisch ausgeführt, für alle gegnerischen Steine):</p>
-            <ul>
-              <li><b>Begegnung:</b> Zieht ein Stein genau auf einen gegnerischen Stein mit gleichem Wert, schlägt er ihn.</li>
-              <li><b>Angriff:</b> Stehen ein eigener und ein gegnerischer Stein in einer Reihe/Spalte mit nur freien Feldern dazwischen und gilt
-                  <i>eigener Wert × Anzahl Felder dazwischen = gegnerischer Wert</i>, fällt der gegnerische Stein (z. B. 2 mit 8 Feldern Abstand schlägt 16).</li>
-              <li><b>Belagerung:</b> Grenzen mindestens zwei eigene Steine (waagrecht/senkrecht) an einen gegnerischen und ergibt
-                  die Summe oder das Produkt <i>aller</i> angrenzenden eigenen Steine dessen Wert, fällt er.</li>
-              <li><b>Primzahlen</b> fallen außerdem, wenn alle Nachbarfelder (waagrecht/senkrecht) mit eigenen Steinen besetzt sind.</li>
-              <li><b>Pyramiden</b> fallen wie andere Steine, aber auch, wenn der Wert ihrer Basis passt (36 bei der 91, 64 bei der 190).</li>
-            </ul>
-            <p><b>Sieg:</b> Wer zuerst drei eigene Steine im <b>gegnerischen Lager</b> direkt nebeneinander in eine Linie bringt
-            (waagrecht, senkrecht oder diagonal), deren Werte eine <b>arithmetische</b> (z. B. 4, 6, 8) oder <b>harmonische</b> Reihe
-            (z. B. 3, 4, 6: (6−4):(4−3) = 6:3) bilden, gewinnt. Für die harmonische Reihe muss mindestens ein erbeuteter, wieder eingesetzter Stein dabei sein.
-            Wer nicht mehr ziehen kann, verliert.</p>
-            <p class="small muted">Vereinfachte Fassung nach dem Wikipedia-Artikel „Zahlenkampfspiel“. Die Ansage des ersten Harmonie-Steins entfällt.
-            Tipp: Ein rotes Zielfeld bedeutet, dass der Zug etwas schlägt – fahr mit der Maus darüber für Details.</p>`,
+        rules: rulesHtml(),
 
-        init() {
-            return ZK.initState();
+        init(prev) {
+            return ZK.initState(prev && prev.settings ? prev.settings : undefined);
+        },
+
+        isMyTurn(state, seat) {
+            return state.phase === 'play' && !state.over && seat !== null && (state.turn || []).includes(seat);
+        },
+
+        canResign(state) {
+            return state.phase === 'play';
         },
 
         resign(state, seat) {
@@ -141,129 +97,190 @@
         },
 
         render(root, ctx) {
-            const { state, mySeat } = ctx;
-            const side = state.turn[0];
-            const mine = ctx.isMyTurn;
-            lastRender = { root, ctx, game: this };
+            const { state } = ctx;
+            if (state.phase === 'setup') return fill(root, renderSetup(ctx));
+            return fill(root, renderBoard(root, ctx));
+        },
+    });
 
-            // Spielende: hochkant, eigenes Lager unten (wie beim Schach).
-            // Zuschauende: quer wie gehabt, auf schmalen Bildschirmen hochkant mit „Gerade“ unten.
-            const narrow = !!(window.matchMedia && window.matchMedia(NARROW).matches);
-            const vertical = mySeat !== null || narrow;
-            const bottom = mySeat !== null ? mySeat : 0;
+    // ------------------------------------------------------------------ Siegbedingungen vor dem Start
 
-            const selKey = ctx.room.id + ':' + ctx.version;   // Auswahl gilt nur für diesen Tisch und Stand
-            if (sel.version !== selKey) sel = { version: selKey, stone: null, drop: null };
-            const rerender = () => { root.replaceChildren(); this.render(root, ctx); };
+    function renderSetup(ctx) {
+        const { state, mySeat } = ctx;
+        const st = state.settings;
+        const canEdit = mySeat !== null;
+        const change = patch => ctx.submit({ ...state, settings: { ...st, ...patch } }, 'reset');
+        const stepper = (key, step, min, max, unit) => h('span', { class: 'kf-stepper zk-stepper' },
+            h('button', { class: 'btn small', disabled: !canEdit || st[key] <= min, onclick: () => change({ [key]: Math.max(min, st[key] - step) }) }, '−'),
+            h('b', {}, st[key], ' ', unit),
+            h('button', { class: 'btn small', disabled: !canEdit || st[key] >= max, onclick: () => change({ [key]: Math.min(max, st[key] + step) }) }, '+'));
+        const row = (on, label, desc, toggle, extra) => h('div', { class: 'zk-setting' },
+            h('button', { class: 'tb-chip' + (on ? ' on' : ''), disabled: !canEdit, onclick: toggle }, label),
+            h('span', { class: 'small muted' }, desc),
+            on && extra ? extra : null);
+        const none = !st.triumph && !st.bodies && !st.goods;
+        return h('div', { class: 'tb' },
+            h('div', { class: 'tb-status' }, t('Wie wird gewonnen?', 'How do you win?')),
+            h('div', { class: 'tb-deck zk-settings' },
+                h('div', { class: 'tb-label' }, t('Siegbedingungen (wer zuerst eine erfüllt, gewinnt)', 'Victory conditions (first to meet one wins)')),
+                row(st.triumph, t('Triumph', 'Triumph'),
+                    t('Gegnerischen König schlagen, dann drei Steine in Proportion im gegnerischen Lager', 'Capture the enemy king, then three men in proportion in the enemy camp'),
+                    () => change({ triumph: !st.triumph })),
+                row(st.bodies > 0, t('Körper', 'Bodies'), t('Eine Zahl an Steinen schlagen', 'Capture a number of men'),
+                    () => change({ bodies: st.bodies ? 0 : ZK.DEFAULT_SETTINGS.bodies }), stepper('bodies', 1, 1, 30, t('Steine', 'men'))),
+                row(st.goods > 0, t('Güter', 'Goods'), t('Steine mit einer Summe an Punkten schlagen', 'Capture men worth a number of points'),
+                    () => change({ goods: st.goods ? 0 : ZK.DEFAULT_SETTINGS.goods }), stepper('goods', 50, 50, 2000, t('Punkte', 'points'))),
+                none ? h('p', { class: 'small error', style: { margin: '.3rem 0 0' } }, t('Bitte mindestens eine Siegbedingung wählen.', 'Please choose at least one victory condition.')) : null),
+            mySeat !== null ? h('button', {
+                class: 'btn primary tb-big', disabled: !ctx.allSeated || none,
+                onclick: () => ctx.submit(ZK.start(state), 'reset'),
+            }, ctx.allSeated ? t('Spiel starten', 'Start game') : t('Warte auf die zweite Person …', 'Waiting for the second player …')) : null);
+    }
 
-            const byPos = new Map(state.stones.map(s => [s.r * ZK.COLS + s.c, s]));
-            const selStone = sel.stone !== null ? state.stones.find(s => s.id === sel.stone) : null;
+    // ------------------------------------------------------------------ Brett
 
-            // Ziele mit Vorschau, was dabei geschlagen würde
-            const targets = new Map();
-            if (mine && selStone) {
-                for (const m of ZK.movesFor(state, selStone)) {
-                    const ns = ZK.applyMove(state, side, selStone.id, m.r, m.c);
-                    targets.set(m.r * ZK.COLS + m.c, { ...m, preview: ns });
-                }
-            } else if (mine && sel.drop !== null) {
-                for (const q of ZK.dropSquares(state, side)) {
-                    targets.set(q.r * ZK.COLS + q.c, { ...q, preview: ZK.applyDrop(state, side, sel.drop, q.r, q.c) });
-                }
+    function renderBoard(root, ctx) {
+        const { state, mySeat } = ctx;
+        const side = state.turn[0];
+        const mine = ctx.isMyTurn;
+        // Hochkant, eigenes Lager unten; Zuschauende sehen „Gerade“ unten
+        const bottom = mySeat !== null ? mySeat : 0;
+
+        const selKey = ctx.room.id + ':' + ctx.version;
+        if (sel.version !== selKey) sel = { version: selKey, stone: null };
+        const rerender = () => { root.replaceChildren(); Games.zahlenkampf.render(root, ctx); };
+
+        const byPos = new Map(state.stones.map(s => [s.r * ZK.COLS + s.c, s]));
+        const selStone = sel.stone !== null ? state.stones.find(s => s.id === sel.stone) : null;
+
+        // Ziele mit Vorschau, was dabei geschlagen würde
+        const targets = new Map();
+        if (mine && selStone) {
+            for (const m of ZK.movesFor(state, selStone)) {
+                targets.set(m.r * ZK.COLS + m.c, { ...m, preview: ZK.applyMove(state, side, selStone.id, m.r, m.c) });
             }
+        }
+        const clickCell = (r, c) => {
+            if (!mine) return;
+            const key = r * ZK.COLS + c;
+            const tg = targets.get(key);
+            if (tg && tg.preview) { ctx.submit(tg.preview); return; }
+            const s = byPos.get(key);
+            sel.stone = s && s.side === side && s.id !== sel.stone ? s.id : null;
+            rerender();
+        };
 
-            const clickCell = (r, c) => {
-                if (!mine) return;
-                const key = r * ZK.COLS + c;
-                const tg = targets.get(key);
-                if (tg && tg.preview) { ctx.submit(tg.preview); return; }
-                const s = byPos.get(key);
-                sel.stone = s && s.side === side && s.id !== sel.stone ? s.id : null;
-                sel.drop = null;
-                rerender();
-            };
-
-            // Anzeige-Reihenfolge der Felder: quer 8 Zeilen × 16 Spalten, hochkant um 90° gedreht
-            // (16 Zeilen × 8 Spalten), sodass das Lager der Seite `bottom` unten liegt.
-            const cells = [];
-            if (vertical) {
-                for (let i = 0; i < ZK.COLS; i++) {
-                    for (let j = 0; j < ZK.ROWS; j++) {
-                        cells.push(bottom === 0
-                            ? { r: j, c: ZK.COLS - 1 - i, mid: i === ZK.COLS / 2 }
-                            : { r: ZK.ROWS - 1 - j, c: i, mid: i === ZK.COLS / 2 });
-                    }
-                }
-            } else {
-                for (let r = 0; r < ZK.ROWS; r++) {
-                    for (let c = 0; c < ZK.COLS; c++) cells.push({ r, c, mid: c === ZK.COLS / 2 });
-                }
-            }
-
-            const board = h('div', { class: 'zk-board' + (vertical ? ' vertical' : '') });
-            for (const { r, c, mid } of cells) {
+        const capturedAt = new Set((state.captured || []).map(([r, c]) => r * ZK.COLS + c));
+        const board = h('div', { class: 'zk-board' });
+        for (let i = 0; i < ZK.ROWS; i++) {
+            for (let j = 0; j < ZK.COLS; j++) {
+                const r = bottom === 0 ? ZK.ROWS - 1 - i : i;
+                const c = bottom === 0 ? j : ZK.COLS - 1 - j;
                 const key = r * ZK.COLS + c;
                 const s = byPos.get(key);
                 const tg = targets.get(key);
-                const cls = ['zk-cell', ZK.homeSide(c) === 0 ? 'home0' : 'home1'];
-                if (mid) cls.push(vertical ? 'midh' : 'mid');
+                const z = ZK.zone(r);
+                const cls = ['zk-cell', z === 0 ? 'home0' : z === 1 ? 'home1' : 'neutral'];
+                const below = bottom === 0 ? r - 1 : r + 1;   // Reihe, die darunter angezeigt wird
+                if (i < ZK.ROWS - 1 && ZK.zone(below) !== z) cls.push('campline');
                 const last = state.last;
-                if (last && ((last.from && last.from[0] === r && last.from[1] === c) || (last.to[0] === r && last.to[1] === c))) cls.push('lastmove');
+                if (last && ((last.from[0] === r && last.from[1] === c) || (last.to[0] === r && last.to[1] === c))) cls.push('lastmove');
+                if (capturedAt.has(key)) cls.push('lastcap');
+                let title = null;
                 if (tg) {
                     cls.push('target');
-                    const capturedNow = tg.preview ? tg.preview.captured.length : 0;
-                    if (capturedNow) cls.push('capture');
+                    if (tg.fly) cls.push('fly');
+                    if (tg.preview && tg.preview.captured.length) cls.push('capture');
                     if (tg.preview && tg.preview.over) cls.push('winning');
-                }
-                let title = null;
-                if (tg && tg.preview) {
-                    const entry = tg.preview.log[tg.preview.log.length - 1];
-                    title = tg.preview.over ? endText(tg.preview.end) : (tg.preview.captured.length ? logText(entry) : null);
+                    const entry = tg.preview && tg.preview.log[tg.preview.log.length - 1];
+                    title = tg.preview && tg.preview.over ? endText(tg.preview.end) : entry && entry.caps.length ? logText(entry) : (tg.fly ? t('fliegen', 'fly') : null);
                 }
                 const extra = [
                     s && sel.stone === s.id ? 'selected' : '',
                     s && mine && s.side === side ? 'own' : '',
-                    s && state.harmony && state.harmony.includes(s.id) ? 'harmony' : '',
+                    s && state.triumph && state.triumph.includes(s.id) ? 'harmony' : '',
                 ].join(' ');
-                board.append(h('div', { class: cls.join(' '), title, onclick: () => clickCell(r, c) },
-                    s ? stoneEl(s, extra) : null));
+                board.append(h('div', { class: cls.join(' '), title, onclick: () => clickCell(r, c) }, s ? stoneEl(s, extra) : null));
             }
+        }
 
-            const reserve = s => h('div', { class: 'zk-reserve' },
-                h('span', { class: 'small muted' }, t(`Beute von ${SIDES[s]}:`, `Captured by ${SIDES[s]}:`)),
-                state.reserve[s].length ? state.reserve[s].map((item, i) => {
-                    const st = { ...item, side: s, conv: true };
-                    const active = mine && s === side;
-                    return h('button', {
-                        class: 'zk-res-btn' + (sel.drop === i && active ? ' selected' : ''),
-                        disabled: !active,
-                        title: active ? t('Klicken und dann auf ein freies Feld deiner Hälfte setzen', 'Click, then place it on an empty square of your half') : null,
-                        onclick: () => { sel.drop = sel.drop === i ? null : i; sel.stone = null; rerender(); },
-                    }, stoneEl(st));
-                }) : h('span', { class: 'small muted' }, '–'));
+        let status = '';
+        if (state.over) status = endText(state.end) + (state.winner !== null && state.winner !== undefined ? t(` ${ctx.label(state.winner)} gewinnt.`, ` ${ctx.label(state.winner)} wins.`) : '');
+        else if (!ctx.allSeated) status = '';
+        else if (mine) status = t('Du bist dran: Stein antippen, dann Zielfeld wählen.', 'Your turn: tap a man, then choose a target square.');
+        else status = t(`${ctx.label(side)} ist dran …`, `${ctx.label(side)} to move …`);
 
-            let status = '';
-            if (state.over) status = endText(state.end) + (state.winner !== null && state.winner !== undefined ? t(` ${ctx.label(state.winner)} gewinnt.`, ` ${ctx.label(state.winner)} wins.`) : '');
-            else if (!ctx.allSeated) status = '';
-            else if (mine) status = t('Du bist dran: Stein anklicken, dann Zielfeld wählen.', 'Your turn: click a stone, then choose a target square.');
-            else status = t(`${ctx.label(side)} ist dran …`, `${ctx.label(side)} to move …`);
+        // Stand der Siegbedingungen
+        const st = state.settings;
+        const score = s => {
+            const tk = state.taken[s];
+            const parts = [t(`${tk.n} ${tk.n === 1 ? 'Stein' : 'Steine'}`, `${tk.n} ${tk.n === 1 ? 'man' : 'men'}`) + (st.bodies ? ` / ${st.bodies}` : ''),
+                           t(`${tk.sum} Punkte`, `${tk.sum} points`) + (st.goods ? ` / ${st.goods}` : '')];
+            const kingGone = !state.stones.some(x => x.side === 1 - s && x.shape === 'K');
+            if (st.triumph && kingGone) parts.push(t('König geschlagen – Triumph möglich', 'king captured – triumph possible'));
+            return h('div', { class: 'zk-score small' }, h('b', {}, SIDES[s] + t(' hat geschlagen: ', ' captured: ')), parts.join(' · '));
+        };
 
-            const log = h('ol', { class: 'zk-log', reversed: true, start: state.log.length },
-                state.log.slice(-12).reverse().map(e => h('li', {}, h('b', {}, SIDES[e.side] + ': '), logText(e))));
+        const log = h('ol', { class: 'zk-log', reversed: true, start: state.log.length },
+            state.log.slice(-12).reverse().map(e => h('li', {}, h('b', {}, SIDES[e.side] + ': '), logText(e))));
 
-            fill(root,
-                h('p', { class: 'status' + (mine ? ' my-turn' : '') }, status),
-                // Beute der Seite unten steht auch unten (dort setzt man sie wieder ein)
-                reserve(vertical ? 1 - bottom : 0),
-                h('div', { class: 'zk-scroll' }, board),
-                reserve(vertical ? bottom : 1),
-                h('div', { class: 'zk-legend small muted' },
-                    mySeat !== null ? t('Dein Lager ist unten.', 'Your camp is at the bottom.')
-                        : vertical ? t('Gerade unten, Ungerade oben.', 'Evens at the bottom, Odds at the top.')
-                        : t('Gerade links, Ungerade rechts.', 'Evens on the left, Odds on the right.'),
-                    t(' Gestrichelte Steine sind wieder eingesetzte Beute.', ' Dashed stones are captured stones brought back in.')),
-                state.log.length ? h('details', { class: 'zk-logbox', open: true }, h('summary', {}, t('Letzte Züge', 'Recent moves')), log) : null,
-            );
-        },
-    });
+        return [
+            h('p', { class: 'status' + (mine ? ' my-turn' : '') }, status),
+            score(1 - bottom),
+            h('div', { class: 'zk-scroll' }, board),
+            score(bottom),
+            h('div', { class: 'zk-legend small muted' },
+                mySeat !== null ? t('Dein Lager ist unten.', 'Your camp is at the bottom.') : t('Gerade unten, Ungerade oben.', 'Evens at the bottom, Odds at the top.'),
+                t(' Gestrichelte Steine sind Gefangene, die jetzt für die andere Seite spielen; gestrichelte Zielfelder sind fliegende Züge.',
+                  ' Dashed men are prisoners now playing for the other side; dashed target squares are flying moves.')),
+            state.log.length ? h('details', { class: 'zk-logbox', open: true }, h('summary', {}, t('Letzte Züge', 'Recent moves')), log) : null,
+        ];
+    }
+
+    function rulesHtml() {
+        return LANG === 'en' ? `
+            <p>Fulke's first variant as reconstructed by Mark Waks
+            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>).
+            Board of 8 × 16 squares; each side's <b>camp</b> are its back six rows. <b>Evens</b> (light) play from the bottom and begin,
+            <b>Odds</b> (dark) from the top. Each side has 8 rounds (●), 8 triangles (▲) and 8 squares (■, one of them is the king).</p>
+            <p><b>Moving:</b> rounds 1 square diagonally; triangles exactly 2 squares and squares exactly 3 squares straight
+            (horizontally or vertically), never jumping over a man. Triangles may also <b>fly</b> like a chess knight, squares like a
+            “long knight” (1 + 3); flying may jump, but a flying move must not capture anything. The <b>king</b> (pyramid: Evens 91 = 36 + 25 + 16 + 9 + 4 + 1,
+            Odds 190 = 64 + 49 + 36 + 25 + 16) moves like any of the shapes it still contains.</p>
+            <p><b>Capturing</b> happens without moving, automatically after your move, for every enemy man that a man of yours could reach
+            with a straight move:</p>
+            <ul>
+              <li><b>Equality:</b> one of your men with the same value reaches it.</li>
+              <li><b>Addition, subtraction, multiplication, division:</b> two of your men reach it and their sum, difference, product or quotient is its value.</li>
+              <li><b>Surrounding:</b> all four neighbouring squares (horizontally/vertically) are occupied by your men.</li>
+              <li>The <b>king</b> cannot be taken by equality; otherwise he falls whole (total value) or loses a part (its value) and with it that shape's moves.</li>
+            </ul>
+            <p>A captured man changes colour and is placed on the rearmost free square of your camp; from there it plays for you.</p>
+            <p><b>Victory</b> (agreed before the game): <b>Triumph</b> – once the enemy king is completely captured, three of your men
+            (that did not arrive flying) in a line in the enemy camp whose values form an arithmetic (4, 6, 8), geometric (2, 4, 8)
+            or harmonic (3, 4, 6) proportion (four men in a line or square with two or three proportions: greater/greatest triumph);
+            <b>Bodies</b> – capture a number of men; <b>Goods</b> – capture men worth a number of points. A player who cannot move loses.</p>`
+            : `
+            <p>Fulkes erste Variante in der Rekonstruktion von Mark Waks
+            (<a href="https://jducoeur.org/game-hist/game-recon-rhyth1.html" target="_blank" rel="noopener">jducoeur.org</a>).
+            Brett mit 8 × 16 Feldern; das <b>Lager</b> jeder Seite sind ihre hinteren sechs Reihen. <b>Gerade</b> (hell) spielt von unten und beginnt,
+            <b>Ungerade</b> (dunkel) von oben. Jede Seite hat 8 Runde (●), 8 Dreiecke (▲) und 8 Quadrate (■, eines davon ist der König).</p>
+            <p><b>Ziehen:</b> Runde 1 Feld diagonal; Dreiecke genau 2 und Quadrate genau 3 Felder gerade (waagrecht oder senkrecht),
+            ohne einen Stein zu überspringen. Dreiecke dürfen außerdem wie der Springer im Schach <b>fliegen</b>, Quadrate wie ein
+            „langer Springer“ (1 + 3); fliegend darf man überspringen, aber nichts schlagen. Der <b>König</b> (Pyramide: Gerade 91 = 36 + 25 + 16 + 9 + 4 + 1,
+            Ungerade 190 = 64 + 49 + 36 + 25 + 16) zieht wie jede Form, die er noch enthält.</p>
+            <p><b>Geschlagen</b> wird ohne zu ziehen, automatisch nach deinem Zug, bei jedem gegnerischen Stein, den ein eigener Stein mit
+            einem geraden Zug erreichen könnte:</p>
+            <ul>
+              <li><b>Gleichheit:</b> Ein eigener Stein mit gleichem Wert erreicht ihn.</li>
+              <li><b>Addition, Subtraktion, Multiplikation, Division:</b> Zwei eigene Steine erreichen ihn, und Summe, Differenz, Produkt oder Quotient ihrer Werte ergibt seinen Wert.</li>
+              <li><b>Einschließen:</b> Alle vier Nachbarfelder (waagrecht/senkrecht) sind mit eigenen Steinen besetzt.</li>
+              <li>Den <b>König</b> schlägt Gleichheit nicht; sonst fällt er ganz (Gesamtwert) oder verliert einen Teil (dessen Wert) und damit die Züge dieser Form.</li>
+            </ul>
+            <p>Ein geschlagener Stein wechselt die Farbe und kommt auf das hinterste freie Feld des eigenen Lagers; von dort spielt er für einen.</p>
+            <p><b>Sieg</b> (vor dem Spiel vereinbart): <b>Triumph</b> – ist der gegnerische König ganz geschlagen, drei eigene (nicht fliegend angekommene)
+            Steine in einer Reihe im gegnerischen Lager, deren Werte eine arithmetische (4, 6, 8), geometrische (2, 4, 8) oder harmonische (3, 4, 6)
+            Proportion bilden (vier Steine in einer Reihe oder im Quadrat mit zwei bzw. drei Proportionen: größerer bzw. größter Triumph);
+            <b>Körper</b> – eine Zahl an Steinen schlagen; <b>Güter</b> – Steine mit einer Summe an Punkten schlagen. Wer nicht mehr ziehen kann, verliert.</p>`;
+    }
 })();

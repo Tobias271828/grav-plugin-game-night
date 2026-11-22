@@ -52,7 +52,7 @@ $instances = [
     'limited'  => ['requests_per_minute' => 5],
     'creates'  => ['creates_per_hour' => 2],
     'percl'    => ['rooms_per_client' => 2, 'creates_per_hour' => 0],
-    'party'    => ['games' => ['konferenz'], 'requests_per_minute' => 0, 'creates_per_hour' => 0, 'rooms_per_client' => 0],
+    'party'    => ['games' => ['konferenz', 'zahlenkampf'], 'requests_per_minute' => 0, 'creates_per_hour' => 0, 'rooms_per_client' => 0],
 ];
 foreach ($instances as $name => &$settings) {
     $settings['data_dir'] = "$tmp/data/$name";
@@ -199,14 +199,34 @@ check($code === 400, 'Startzustand muss ein Objekt sein', $code);
 [$code] = api('open', ['action' => 'create', 'game' => 'connect4', 'state' => ['x' => str_repeat('a', 200001)]]);
 check($code === 413 || $code === 400, 'zu großer Startzustand abgelehnt', $code);
 
+// Zahlenkampf: gültiger Startzustand (wie ZK.initState, gekürzt) und manipulierte Varianten
+$zk = fn(array $stone = []) => ['phase' => 'setup', 'settings' => ['triumph' => true, 'bodies' => 12, 'goods' => 600],
+    'stones' => [$stone + ['id' => 0, 'side' => 0, 'shape' => 'rd', 'v' => 4, 'r' => 4, 'c' => 5, 'fly' => false, 'conv' => false],
+                 ['id' => 1, 'side' => 1, 'shape' => 'K', 'v' => 190, 'r' => 12, 'c' => 7, 'fly' => false, 'conv' => false,
+                  'parts' => [['shape' => 'sq', 'v' => 64], ['shape' => 'rd', 'v' => 16]]]],
+    'taken' => [['n' => 0, 'sum' => 0], ['n' => 0, 'sum' => 0]], 'turn' => [0], 'over' => false, 'winner' => null, 'end' => null,
+    'last' => null, 'captured' => [], 'triumph' => null, 'log' => [], 'nextId' => 2];
+[$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $zk()]);
+check($code === 200, 'Zahlenkampf: gültiger Startzustand angenommen', $code);
+foreach ([
+    'riesige Zahl'        => $zk(['v' => 9007199254740881]),
+    '__proto__ als Reihe' => $zk(['r' => '__proto__', 'c' => 'map']),
+    'Reihe außerhalb'     => $zk(['r' => 16]),
+    'unbekannte Form'     => $zk(['shape' => 'zauber']),
+    'König ohne Teile'    => $zk(['shape' => 'K']),
+    'zu viele Steine'     => ['stones' => array_fill(0, 61, $zk()['stones'][0])] + $zk(),
+    'Siegbedingung'       => ['settings' => ['triumph' => 'ja', 'bodies' => 12, 'goods' => 600]] + $zk(),
+] as $what => $state) {
+    [$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $state]);
+    check($code === 400, "Zahlenkampf: manipulierter Startzustand abgelehnt: $what", $code);
+}
+
 // Nicht darstellbare Zahlen (1e400 → INF) dürfen keinen Tisch zerstören (früher: Datei nur noch Schutzzeile)
 $inf = fn(string $num) => substr(json_encode(c4([0])), 0, -1) . ',"x":' . $num . '}';   // sonst gültiger Stand
 [$code] = req('open', '{"action":"create","game":"connect4","state":' . $inf('1e400') . '}');
 check($code === 400, 'Startzustand mit 1e400 abgelehnt', $code);
 $c4 = c4([0]);
 foreach ([
-    'riesige Zahl'         => ['zahlenkampf', ['stones' => [['id' => 0, 'side' => 0, 'v' => 9007199254740881, 'kind' => 'b', 'r' => 0, 'c' => 0, 'conv' => false]], 'reserve' => [[], []], 'turn' => [0]]],
-    '__proto__ als Zeile'  => ['zahlenkampf', ['stones' => [['id' => 0, 'side' => 0, 'v' => 4, 'kind' => 'b', 'r' => '__proto__', 'c' => 'map', 'conv' => false]], 'reserve' => [[], []], 'turn' => [0]]],
     '401 Schachzüge'       => ['handbrain', ['moves' => array_fill(0, 401, 'e4'), 'phase' => 'choose', 'piece' => null, 'turn' => [0]]],
     'Schlüssel __proto__'  => ['connect4', ['__proto__' => ['x' => 1]] + $c4],
     'Platz 7 am Zug'       => ['connect4', ['turn' => [7]] + $c4],

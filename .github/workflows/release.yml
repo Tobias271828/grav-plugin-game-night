@@ -36,6 +36,9 @@ jobs:
       - name: API-Tests
         run: php tests/api-test.php
 
+      - name: Zahlenkampf-Logik
+        run: node tests/zahlenkampf-test.js
+
       - name: Pakete bauen
         run: php build.php
 

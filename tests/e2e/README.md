@@ -15,7 +15,7 @@ Rate limits are switched off for the test instances (all browsers share one IP a
 |---|---|
 | `connect4` | 2 players: game until a win, both see the result, “Neue Runde” (other colour starts), resign, “Neu starten” with cancelled confirm, clicks out of turn |
 | `handbrain` | 4 players: only legal piece types offered, wrong piece type not selectable, Scholar's mate (capture + checkmate), new round with captures, resign, pawn promotion |
-| `zahlenkampf` | 2 players: moves chosen with the game logic (capturing moves preferred) until at least two captures and one drop from the reserve, same log for both, resign |
+| `zahlenkampf` | 2 players: setting the victory conditions (Bodies 2, Goods off) – both see them, a game with moves chosen by the game logic (capturing moves and flying moves preferred, red/dashed target squares), same log for both, victory of bodies, settings kept for the next round, resign |
 | `trombone` | 3 players: deck choice, bids via the composer, “Trombone!” notice, reveal, simultaneous “Nächste Runde”, removing a player, “Person aufnehmen” with vote, rejoining with 2 cards, rounds until somebody loses, “Neues Spiel” |
 | `werbinich` | 3 players: picking (incl. “andere Person wählen”), typing is not interrupted by others' updates, changing a term, nobody sees (or receives) their own term, “Erraten!” notices, game over |
 | `konferenz` | 6 players (2 on phones): adjusting the role setup, a whole maths conference played through the buttons (proposals/choice of the constructivists, all night roles, open votes, physicist), only allowed roles visible to everyone, all roles revealed at the end, leaving early |

@@ -1,72 +1,74 @@
 /* Zahlenkampfspiel (Rithmomachie) – reine Spiellogik, ohne Oberfläche.
  *
- * Brett: 8 Zeilen × 16 Spalten. Seite 0 („Gerade“) links (Spalten 0–7),
- * Seite 1 („Ungerade“) rechts (Spalten 8–15).
+ * Regeln: Fulkes erste Variante in der Rekonstruktion von Mark Waks
+ * (https://jducoeur.org/game-hist/game-recon-rhyth1.html), Grundlagen nach „Rhythmomachy Basics“.
+ *
+ * Brett: 16 Reihen (r) × 8 Spalten (c). Seite 0 („Gerade“) hat ihr Lager in den Reihen 0–5,
+ * Seite 1 („Ungerade“) in den Reihen 10–15; die Steine stehen anfangs in den Reihen 2–5 bzw. 10–13.
+ * Formen: rd = Runde, tri = Dreieck, sq = Quadrat, K = König (Pyramide aus Teilen).
  */
 'use strict';
 
 const ZK = (function () {
-    const ROWS = 8, COLS = 16;
-    const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const ROWS = 16, COLS = 8;
+    const ORTH = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+    const KNIGHT = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
+    const LONG_KNIGHT = [[1, 3], [3, 1], [-1, 3], [-3, 1], [1, -3], [3, -1], [-1, -3], [-3, -1]];
+    const STEP = { tri: 2, sq: 3 };   // gerade Züge: genau so viele Felder, ohne zu überspringen
 
-    // Steinarten: b = Grundzahl, m = multiplex, sp1/sp2 = superparticulares, st1/st2 = superpartientes
-    const VALUE = {
-        b: n => n,
-        m: n => n * n,
-        sp1: n => n * (n + 1),
-        sp2: n => (n + 1) * (n + 1),
-        st1: n => (n + 1) * (2 * n + 1),
-        st2: n => (2 * n + 1) * (2 * n + 1),
-    };
-    const RANGE = { b: 1, m: 2, sp1: 3, sp2: 3, st1: 4, st2: 4 };
-    const BASES = [[2, 4, 6, 8], [3, 5, 7, 9]];
-    // Pyramide: Seite 0 → 91 (Kette 6, st1, Basis 6² = 36), Seite 1 → 190 (Kette 9, st1, Basis 8² = 64)
-    const PYRAMID = [{ chain: 2, kind: 'st1', base: 36 }, { chain: 3, kind: 'st1', base: 64 }];
-
-    // Aufstellung je Seite: [Abstand von der eigenen Grundlinie (0 = hinten), Zeile, Kette, Art]
+    // Aufstellung nach Fulke (vom eigenen hinteren Rand aus gezählt, Spalten von links aus Sicht von „Gerade“);
+    // in dieser Variante zwei Reihen weiter vorne (Reihen 3–6 statt 1–4)
     const LAYOUT = [
-        [3, 2, 0, 'b'], [3, 3, 1, 'b'], [3, 4, 2, 'b'], [3, 5, 3, 'b'],
-        [2, 0, 0, 'sp2'], [2, 1, 0, 'sp1'], [2, 2, 0, 'm'], [2, 3, 1, 'm'],
-        [2, 4, 2, 'm'], [2, 5, 3, 'm'], [2, 6, 3, 'sp1'], [2, 7, 3, 'sp2'],
-        [1, 0, 0, 'st1'], [1, 1, 0, 'st2'], [1, 2, 1, 'sp2'], [1, 3, 1, 'sp1'],
-        [1, 4, 2, 'sp1'], [1, 5, 2, 'sp2'], [1, 6, 3, 'st2'], [1, 7, 3, 'st1'],
-        [0, 2, 1, 'st1'], [0, 3, 1, 'st2'], [0, 4, 2, 'st2'], [0, 5, 2, 'st1'],
+        // Gerade: [Reihe, Spalte, Form, Wert]
+        [[2, 0, 'sq', 289], [2, 1, 'sq', 169], [2, 6, 'sq', 81], [2, 7, 'sq', 25],
+         [3, 0, 'sq', 153], [3, 1, 'K', 91], [3, 2, 'tri', 49], [3, 3, 'tri', 42], [3, 4, 'tri', 20], [3, 5, 'tri', 25], [3, 6, 'sq', 45], [3, 7, 'sq', 15],
+         [4, 0, 'tri', 81], [4, 1, 'tri', 72], [4, 2, 'rd', 64], [4, 3, 'rd', 36], [4, 4, 'rd', 16], [4, 5, 'rd', 4], [4, 6, 'tri', 6], [4, 7, 'tri', 9],
+         [5, 2, 'rd', 8], [5, 3, 'rd', 6], [5, 4, 'rd', 4], [5, 5, 'rd', 2]],
+        // Ungerade
+        [[13, 0, 'sq', 49], [13, 1, 'sq', 121], [13, 6, 'sq', 225], [13, 7, 'sq', 361],
+         [12, 0, 'sq', 28], [12, 1, 'sq', 66], [12, 2, 'tri', 36], [12, 3, 'tri', 30], [12, 4, 'tri', 56], [12, 5, 'tri', 64], [12, 6, 'sq', 120], [12, 7, 'K', 190],
+         [11, 0, 'tri', 16], [11, 1, 'tri', 12], [11, 2, 'rd', 9], [11, 3, 'rd', 25], [11, 4, 'rd', 49], [11, 5, 'rd', 81], [11, 6, 'tri', 90], [11, 7, 'tri', 100],
+         [10, 2, 'rd', 3], [10, 3, 'rd', 5], [10, 4, 'rd', 7], [10, 5, 'rd', 9]],
     ];
+    // Die Könige (Pyramiden) bestehen aus Teilen; ihr Wert ist die Summe
+    const KING_PARTS = [
+        [{ shape: 'sq', v: 36 }, { shape: 'sq', v: 25 }, { shape: 'tri', v: 16 }, { shape: 'tri', v: 9 }, { shape: 'rd', v: 4 }, { shape: 'rd', v: 1 }],
+        [{ shape: 'sq', v: 64 }, { shape: 'sq', v: 49 }, { shape: 'tri', v: 36 }, { shape: 'tri', v: 25 }, { shape: 'rd', v: 16 }],
+    ];
+    const DEFAULT_SETTINGS = { triumph: true, bodies: 12, goods: 600 };
+    const camp = side => (side === 0 ? [0, 5] : [10, 15]);   // Lager: die hinteren sechs Reihen
 
-    function initState() {
+    function initState(settings = DEFAULT_SETTINGS) {
         const stones = [];
         for (const side of [0, 1]) {
-            for (const [depth, row, chain, kind] of LAYOUT) {
-                const n = BASES[side][chain];
-                const pyr = PYRAMID[side].chain === chain && PYRAMID[side].kind === kind;
-                stones.push({
-                    id: stones.length,
-                    side,
-                    v: VALUE[kind](n),
-                    kind: pyr ? 'P' : kind,
-                    base: pyr ? PYRAMID[side].base : undefined,
-                    r: row,
-                    c: side === 0 ? depth : COLS - 1 - depth,
-                    conv: false,            // durch Wiedereinsetzen übergelaufen?
-                });
+            for (const [r, c, shape, v] of LAYOUT[side]) {
+                const s = { id: stones.length, side, shape, v, r, c, fly: false, conv: false };
+                if (shape === 'K') s.parts = KING_PARTS[side].map(p => ({ ...p }));
+                stones.push(s);
             }
         }
         return {
-            stones,                         // Steine auf dem Brett
-            reserve: [[], []],              // erbeutete Steine je Seite (wieder einsetzbar)
-            turn: [0],
+            phase: 'setup',                 // setup (Siegbedingungen einstellen) | play
+            settings: { ...settings },
+            stones,
+            taken: [{ n: 0, sum: 0 }, { n: 0, sum: 0 }],   // von jeder Seite geschlagen: Anzahl und Summe
+            turn: [0],                      // Gerade beginnt
             over: false,
             winner: null,
-            end: null,                      // { type: 'harmony', kind, values } | { type: 'stuck' } | { type: 'resign', seat }
-            last: null,                     // { from:[r,c]|null, to:[r,c] }
-            captured: [],                   // Ids der zuletzt geschlagenen Steine (für Hervorhebung)
+            end: null,                      // { type: 'triumph', level, values, kinds } | { type: 'bodies' | 'goods' | 'stuck' } | { type: 'resign', seat }
+            last: null,                     // { from: [r, c], to: [r, c], fly }
+            captured: [],                   // Felder der zuletzt geschlagenen Steine (für Hervorhebung)
+            triumph: null,                  // Ids der Steine eines Triumphs
             log: [],                        // Zugprotokoll als Daten (Text erst in der Oberfläche)
             nextId: stones.length,
         };
     }
 
     const inBoard = (r, c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
-    const homeSide = c => (c < COLS / 2 ? 0 : 1);
+    const value = s => (s.shape === 'K' ? s.parts.reduce((x, p) => x + p.v, 0) : s.v);
+    const shapes = s => (s.shape === 'K' ? [...new Set(s.parts.map(p => p.shape))] : [s.shape]);
+    const zone = r => (r <= 5 ? 0 : r >= 10 ? 1 : null);   // Lager von Seite 0/1, sonst Niemandsland
 
     function grid(state) {
         const g = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -77,218 +79,246 @@ const ZK = (function () {
         return g;
     }
 
-    function isPrime(n) {
-        if (!Number.isSafeInteger(n) || n < 2 || n > 1e7) return false;   // echte Werte sind klein
-        for (let d = 2; d * d <= n; d++) if (n % d === 0) return false;
-        return true;
-    }
-
-    /** Werte, mit denen ein Stein geschlagen werden kann (Pyramide auch über ihre Basis). */
-    function targetValues(stone) {
-        return stone.kind === 'P' ? [stone.v, stone.base] : [stone.v];
-    }
-
-    function ranges(stone) {
-        return stone.kind === 'P' ? [1, 2, 3, 4] : [RANGE[stone.kind]];
-    }
-
-    /**
-     * Alle Zielfelder eines Steins: genau k Schritte waagrecht/senkrecht,
-     * gerade oder mit einem rechten Winkel, über freie Felder.
-     * Ein besetztes Zielfeld ist nur bei einer „Begegnung“ (gleicher Wert) erlaubt.
-     */
-    function movesFor(state, stone, g = grid(state)) {
-        const result = new Map();
-        const free = (r, c) => inBoard(r, c) && g[r][c] === null;
-        const consider = (r, c) => {
-            if (!inBoard(r, c)) return;
-            const t = g[r][c];
-            if (t === null) result.set(r * COLS + c, { r, c, capture: null });
-            else if (t.side !== stone.side && targetValues(t).includes(stone.v)) result.set(r * COLS + c, { r, c, capture: t.id });
-        };
-        for (const k of ranges(stone)) {
-            for (const [dr, dc] of DIRS) {
-                let r = stone.r, c = stone.c, ok = true;
-                for (let a = 1; a <= k && ok; a++) {
-                    r += dr; c += dc;
-                    if (a === k) { consider(r, c); break; }
-                    if (!free(r, c)) { ok = false; break; }
-                    // Abbiegen nach a Schritten, Rest (k - a) senkrecht dazu
-                    for (const [er, ec] of DIRS) {
-                        if (er * dr + ec * dc !== 0) continue;   // nur senkrecht abbiegen
-                        let rr = r, cc = c;
-                        for (let b = 1; b <= k - a; b++) {
-                            rr += er; cc += ec;
-                            if (b === k - a) consider(rr, cc);
-                            else if (!free(rr, cc)) break;
-                        }
-                    }
-                }
-            }
-        }
-        return [...result.values()];
-    }
-
-    /** Freie Felder der eigenen Hälfte für das Wiedereinsetzen. */
-    function dropSquares(state, side) {
-        const g = grid(state);
+    /** Felder, die ein Stein mit einem geraden (nicht fliegenden) Zug erreicht; das Ziel selbst darf besetzt sein. */
+    function reachSquares(s, g) {
         const out = [];
-        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-            if (homeSide(c) === side && g[r][c] === null) out.push({ r, c });
+        for (const shape of shapes(s)) {
+            if (shape === 'rd') {
+                for (const [dr, dc] of DIAG) if (inBoard(s.r + dr, s.c + dc)) out.push([s.r + dr, s.c + dc]);
+                continue;
+            }
+            const k = STEP[shape];
+            for (const [dr, dc] of ORTH) {
+                let ok = true;
+                for (let a = 1; a < k; a++) {
+                    const r = s.r + dr * a, c = s.c + dc * a;
+                    if (!inBoard(r, c) || g[r][c] !== null) { ok = false; break; }
+                }
+                const r = s.r + dr * k, c = s.c + dc * k;
+                if (ok && inBoard(r, c)) out.push([r, c]);
+            }
         }
         return out;
     }
 
+    /** Fliegende Züge: Dreieck wie der Springer, Quadrat wie ein langer Springer (darf überspringen). */
+    function flySquares(s) {
+        const out = [];
+        for (const shape of shapes(s)) {
+            const vecs = shape === 'tri' ? KNIGHT : shape === 'sq' ? LONG_KNIGHT : [];
+            for (const [dr, dc] of vecs) if (inBoard(s.r + dr, s.c + dc)) out.push([s.r + dr, s.c + dc]);
+        }
+        return out;
+    }
+
+    const reaches = (s, t, g) => reachSquares(s, g).some(([r, c]) => r === t.r && c === t.c);
+
     /**
-     * Welche gegnerischen Steine fallen, nachdem `side` gezogen hat?
-     * Gibt Liste { id, why } zurück; why = { t: 'assault', a, n } | { t: 'sum' | 'prod', nums } | { t: 'prime' }.
+     * Welche gegnerischen Steine (bzw. Königsteile) fallen, nachdem `side` gezogen hat? Geschlagen wird ohne Ziehen:
+     * Gleichheit (ein eigener Stein mit gleichem Wert erreicht ihn), Addition/Subtraktion/Multiplikation/Division
+     * (zwei eigene Steine, die ihn beide erreichen), Einschließen (alle vier Nachbarfelder waagrecht/senkrecht eigene Steine).
+     * Den König schlägt Gleichheit nie; mit den anderen Arten fällt er ganz (Gesamtwert) oder ein Teil (Teilwert).
+     * Gibt [{ id, part (Index oder null), why }] zurück.
      */
     function findCaptures(state, side) {
         const g = grid(state);
+        const mine = state.stones.filter(s => s.side === side);
         const out = [];
         for (const t of state.stones) {
             if (t.side === side) continue;
-            const vals = targetValues(t);
-            let why = null;
-
-            // Angriff aus der Ferne: Wert × Anzahl freier Felder dazwischen = Zielwert
-            for (const [dr, dc] of DIRS) {
-                if (why) break;
-                let r = t.r + dr, c = t.c + dc, between = 0;
-                while (inBoard(r, c) && g[r][c] === null) { between++; r += dr; c += dc; }
-                if (!inBoard(r, c) || between === 0) continue;
-                const a = g[r][c];
-                if (a.side === side && vals.includes(a.v * between)) {
-                    why = { t: 'assault', a: a.v, n: between };
+            const atk = mine.filter(s => reaches(s, t, g)).map(value);
+            const pairWhy = v => {
+                for (let i = 0; i < atk.length; i++) {
+                    for (let j = i + 1; j < atk.length; j++) {
+                        const [a, b] = atk[i] >= atk[j] ? [atk[i], atk[j]] : [atk[j], atk[i]];
+                        if (a + b === v) return { t: 'add', a, b };
+                        if (a - b === v) return { t: 'sub', a, b };
+                        if (a * b === v) return { t: 'mul', a, b };
+                        if (b > 0 && a % b === 0 && a / b === v) return { t: 'div', a, b };
+                    }
+                }
+                return null;
+            };
+            let why = null, part = null;
+            const surrounded = ORTH.every(([dr, dc]) => {
+                const r = t.r + dr, c = t.c + dc;
+                return inBoard(r, c) && g[r][c] && g[r][c].side === side;
+            });
+            if (surrounded) {
+                why = { t: 'obl' };
+            } else if (t.shape !== 'K') {
+                why = atk.includes(t.v) ? { t: 'eq', a: t.v } : pairWhy(t.v);
+            } else {
+                why = pairWhy(value(t));
+                for (let i = 0; !why && i < t.parts.length; i++) {
+                    why = pairWhy(t.parts[i].v);
+                    if (why) part = i;
                 }
             }
-
-            // Belagerung: Summe oder Produkt der angrenzenden eigenen Steine
-            const neigh = [];
-            let neighFields = 0;
-            for (const [dr, dc] of DIRS) {
-                const r = t.r + dr, c = t.c + dc;
-                if (!inBoard(r, c)) continue;
-                neighFields++;
-                if (g[r][c] && g[r][c].side === side) neigh.push(g[r][c].v);
-            }
-            if (!why && neigh.length >= 2) {
-                const sum = neigh.reduce((x, y) => x + y, 0);
-                const prod = neigh.reduce((x, y) => x * y, 1);
-                if (vals.includes(sum)) why = { t: 'sum', nums: neigh };
-                else if (vals.includes(prod)) why = { t: 'prod', nums: neigh };
-            }
-
-            // Primzahl: rundum von eigenen Steinen eingeschlossen
-            if (!why && t.kind !== 'P' && isPrime(t.v) && neigh.length === neighFields) {
-                why = { t: 'prime' };
-            }
-
-            if (why) out.push({ id: t.id, why });
+            if (why) out.push({ id: t.id, part, why });
         }
         return out;
     }
 
-    /** Drei eigene Steine nebeneinander (Linie, auch diagonal) im gegnerischen Lager, die eine Harmonie bilden. */
-    function findHarmony(state, side) {
-        const g = grid(state);
-        const enemyHalf = c => homeSide(c) !== side;
-        for (const s of state.stones) {
-            if (s.side !== side || !enemyHalf(s.c)) continue;
-            for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
-                const trio = [s];
-                for (let i = 1; i < 3; i++) {
-                    const r = s.r + dr * i, c = s.c + dc * i;
-                    if (!inBoard(r, c) || !enemyHalf(c) || !g[r][c] || g[r][c].side !== side) break;
-                    trio.push(g[r][c]);
-                }
-                if (trio.length < 3) continue;
-                const [a, b, c] = trio.map(x => x.v).sort((x, y) => x - y);
-                if (a === b || b === c) continue;
-                if (a + c === 2 * b) return { kind: 'arith', values: [a, b, c], ids: trio.map(x => x.id) };
-                if (a * (c - b) === c * (b - a) && trio.some(x => x.conv)) {
-                    return { kind: 'harm', values: [a, b, c], ids: trio.map(x => x.id) };
-                }
-            }
-        }
+    /** Freies Feld für einen Gefangenen: hinterste Reihe des eigenen Lagers, sonst die nächste. */
+    function prisonSquare(state, side, g) {
+        const rows = side === 0 ? [0, 1, 2, 3, 4, 5] : [15, 14, 13, 12, 11, 10];
+        for (const r of rows) for (let c = 0; c < COLS; c++) if (g[r][c] === null) return [r, c];
         return null;
     }
 
-    const brief = stone => ({ v: stone.v, kind: stone.kind });
+    // ------------------------------------------------------------------ Proportionen und Triumph
 
-    /** Nach Zug/Einsetzen: Schläge ausführen, Sieg prüfen, Zug weitergeben. Verändert state. */
+    /** Proportionen dreier verschiedener Werte: arithmetisch, geometrisch, harmonisch. */
+    function proportions(vals) {
+        const [a, b, c] = [...vals].sort((x, y) => x - y);
+        const kinds = [];
+        if (a === b || b === c) return kinds;
+        if (b - a === c - b) kinds.push('arith');
+        if (b * b === a * c) kinds.push('geo');
+        if (c * (b - a) === a * (c - b)) kinds.push('harm');
+        return kinds;
+    }
+
+    function kindsOf(vals) {
+        if (vals.length === 3) return proportions(vals);
+        const set = new Set();
+        for (let skip = 0; skip < vals.length; skip++) proportions(vals.filter((_, i) => i !== skip)).forEach(k => set.add(k));
+        return [...set];
+    }
+
+    /**
+     * Triumph (nur nachdem der gegnerische König ganz geschlagen ist): im gegnerischen Lager eigene Steine, die
+     * nicht fliegend angekommen sind – drei in einer Reihe mit einer Proportion (großer Triumph), vier in einer Reihe
+     * oder im Quadrat mit zwei (größerer) bzw. allen drei Proportionen (größter Triumph).
+     */
+    function findTriumph(state, side) {
+        const enemy = 1 - side;
+        if (state.stones.some(s => s.side === enemy && s.shape === 'K')) return null;
+        const g = grid(state);
+        const ok = (r, c) => inBoard(r, c) && zone(r) === enemy && g[r][c] && g[r][c].side === side && !g[r][c].fly;
+        let best = null;
+        const consider = cells => {
+            if (!cells.every(([r, c]) => ok(r, c))) return;
+            const stones = cells.map(([r, c]) => g[r][c]);
+            const kinds = kindsOf(stones.map(value));
+            const level = cells.length === 3 ? (kinds.length ? 1 : 0) : (kinds.length >= 3 ? 3 : kinds.length >= 2 ? 2 : 0);
+            if (level && (!best || level > best.level)) best = { level, kinds, values: stones.map(value), ids: stones.map(s => s.id) };
+        };
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+                    for (const n of [3, 4]) consider(Array.from({ length: n }, (_, i) => [r + dr * i, c + dc * i]));
+                }
+                consider([[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]);
+            }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------------ Züge
+
+    /** Alle Züge eines Steins: [{ r, c, fly }]. Fliegende Züge, nach denen etwas fallen würde, sind nicht erlaubt. */
+    function movesFor(state, stone) {
+        const g = grid(state);
+        const out = [];
+        for (const [r, c] of reachSquares(stone, g)) if (g[r][c] === null) out.push({ r, c, fly: false });
+        for (const [r, c] of flySquares(stone)) {
+            if (g[r][c] !== null || out.some(m => m.r === r && m.c === c)) continue;
+            const moved = { ...state, stones: state.stones.map(s => (s.id === stone.id ? { ...s, r, c } : s)) };
+            if (!findCaptures(moved, stone.side).length) out.push({ r, c, fly: true });
+        }
+        return out;
+    }
+
+    /** Kann `side` überhaupt ziehen? Erst die (billigen) geraden Züge prüfen, nur notfalls die fliegenden. */
+    function hasAnyMove(state, side) {
+        const g = grid(state);
+        const own = state.stones.filter(s => s.side === side);
+        return own.some(s => reachSquares(s, g).some(([r, c]) => g[r][c] === null)) || own.some(s => movesFor(state, s).length);
+    }
+
+    const brief = s => ({ v: value(s), shape: s.shape });
+
+    /** Nach dem Zug: Schläge ausführen, Gefangene einsetzen, Sieg prüfen, Zug weitergeben. Verändert state. */
     function finishTurn(state, side, entry) {
         const caps = findCaptures(state, side);
         for (const cap of caps) {
-            const idx = state.stones.findIndex(s => s.id === cap.id);
-            const [stone] = state.stones.splice(idx, 1);
-            state.reserve[side].push({ v: stone.v, kind: stone.kind, base: stone.base });
-            state.captured.push(stone.id);
-            entry.caps.push({ stone: brief(stone), why: cap.why });
+            const t = state.stones.find(s => s.id === cap.id);
+            const pos = [t.r, t.c];
+            let prisoner = null;
+            if (cap.part !== null) {
+                const [p] = t.parts.splice(cap.part, 1);
+                entry.caps.push({ stone: { v: p.v, shape: p.shape, of: 'K' }, why: cap.why });
+                state.taken[side].n++;
+                state.taken[side].sum += p.v;
+                prisoner = { shape: p.shape, v: p.v };
+                if (!t.parts.length) state.stones = state.stones.filter(s => s.id !== t.id);
+            } else {
+                entry.caps.push({ stone: brief(t), why: cap.why });
+                state.taken[side].n++;
+                state.taken[side].sum += value(t);
+                state.stones = state.stones.filter(s => s.id !== t.id);
+                if (t.shape !== 'K') prisoner = { shape: t.shape, v: t.v };   // ein ganzer König wechselt nicht die Seite
+            }
+            state.captured.push(pos);
+            // Gefangene wechseln die Farbe und stellen sich hinten im eigenen Lager auf
+            const sq = prisoner && prisonSquare(state, side, grid(state));
+            if (sq) state.stones.push({ id: state.nextId++, side, shape: prisoner.shape, v: prisoner.v, r: sq[0], c: sq[1], fly: false, conv: true });
         }
         state.log.push(entry);
         if (state.log.length > 200) state.log.shift();
 
-        const harmony = findHarmony(state, side);
-        if (harmony) {
+        const st = state.settings;
+        const tri = st.triumph ? findTriumph(state, side) : null;
+        let end = null;
+        if (tri) {
+            state.triumph = tri.ids;
+            end = { type: 'triumph', level: tri.level, kinds: tri.kinds, values: tri.values };
+        } else if (st.bodies > 0 && state.taken[side].n >= st.bodies) {
+            end = { type: 'bodies', n: state.taken[side].n };
+        } else if (st.goods > 0 && state.taken[side].sum >= st.goods) {
+            end = { type: 'goods', sum: state.taken[side].sum };
+        } else if (!hasAnyMove(state, 1 - side)) {
+            end = { type: 'stuck' };
+        }
+        if (end) {
             state.over = true;
             state.winner = side;
-            state.harmony = harmony.ids;
-            state.end = { type: 'harmony', kind: harmony.kind, values: harmony.values };
+            state.end = end;
             return state;
         }
-        const enemy = 1 - side;
-        const enemyCanMove = state.stones.some(s => s.side === enemy && movesFor(state, s).length) || state.reserve[enemy].length > 0;
-        if (!enemyCanMove) {
-            state.over = true;
-            state.winner = side;
-            state.end = { type: 'stuck' };
-            return state;
-        }
-        state.turn = [enemy];
+        state.turn = [1 - side];
         return state;
     }
 
-    /** Zug ausführen. Gibt neuen Zustand oder null (illegal) zurück. */
+    /** Zug ausführen. Gibt den neuen Zustand oder null (nicht erlaubt) zurück. */
     function applyMove(prev, side, stoneId, r, c) {
+        if (prev.phase !== 'play' || prev.over || prev.turn[0] !== side) return null;
         const state = JSON.parse(JSON.stringify(prev));
         const stone = state.stones.find(s => s.id === stoneId);
         if (!stone || stone.side !== side) return null;
         const mv = movesFor(state, stone).find(m => m.r === r && m.c === c);
         if (!mv) return null;
         state.captured = [];
-        state.harmony = null;
-        const entry = { side, act: 'move', stone: brief(stone), caps: [] };
-        if (mv.capture !== null) {
-            const idx = state.stones.findIndex(s => s.id === mv.capture);
-            const [t] = state.stones.splice(idx, 1);
-            state.reserve[side].push({ v: t.v, kind: t.kind, base: t.base });
-            state.captured.push(t.id);
-            entry.caps.push({ stone: brief(t), why: { t: 'encounter' } });
-        }
-        state.last = { from: [stone.r, stone.c], to: [r, c] };
+        state.triumph = null;
+        state.last = { from: [stone.r, stone.c], to: [r, c], fly: mv.fly };
         stone.r = r;
         stone.c = c;
-        return finishTurn(state, side, entry);
+        stone.fly = mv.fly;
+        return finishTurn(state, side, { side, stone: brief(stone), fly: mv.fly, caps: [] });
     }
 
-    /** Erbeuteten Stein (Index in reserve[side]) auf ein freies Feld der eigenen Hälfte setzen. */
-    function applyDrop(prev, side, reserveIdx, r, c) {
-        const state = JSON.parse(JSON.stringify(prev));
-        const item = state.reserve[side][reserveIdx];
-        if (!item || !dropSquares(state, side).some(q => q.r === r && q.c === c)) return null;
-        state.reserve[side].splice(reserveIdx, 1);
-        state.captured = [];
-        state.harmony = null;
-        const stone = { id: state.nextId++, side, v: item.v, kind: item.kind, base: item.base, r, c, conv: true };
-        state.stones.push(stone);
-        state.last = { from: null, to: [r, c] };
-        return finishTurn(state, side, { side, act: 'drop', stone: brief(stone), caps: [] });
+    /** Spiel nach dem Einstellen der Siegbedingungen beginnen. */
+    function start(prev) {
+        const state = initState(prev.settings);
+        state.phase = 'play';
+        return state;
     }
 
     return {
-        ROWS, COLS, initState, movesFor, dropSquares, findCaptures, findHarmony,
-        applyMove, applyDrop, isPrime, homeSide,
+        ROWS, COLS, DEFAULT_SETTINGS, KING_PARTS, initState, start, movesFor, findCaptures, findTriumph,
+        proportions, applyMove, value, zone, camp,
     };
 })();
 

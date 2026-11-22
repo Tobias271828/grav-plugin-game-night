@@ -24,3 +24,6 @@ jobs:
           for f in assets/js/*.js; do node --check "$f"; done
       - name: API-Tests
         run: php tests/api-test.php
+
+      - name: Zahlenkampf-Logik
+        run: node tests/zahlenkampf-test.js
