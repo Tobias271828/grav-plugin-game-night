@@ -205,7 +205,8 @@
             <b>Odds</b> (dark) from the top. Each side has 8 rounds (●), 8 triangles (▲) and 8 squares (■, one of them is the pyramid).</p>
             <p><b>Moving</b> (always onto a free square): rounds 1 square diagonally; triangles exactly 2 squares and squares exactly 3 squares
             straight (horizontally or vertically), never jumping over a man. Triangles may also <b>fly</b> like a chess knight, squares like a
-            “long knight” (1 + 3); flying may jump over men and is an ordinary move in every respect. The <b>pyramid</b>
+            “long knight”: first the long step of 2 or 3 squares straight (all of its squares free, including the corner), then 1 square
+            sideways. Flying is an ordinary move in every respect. The <b>pyramid</b>
             (Evens 91 = 36 + 25 + 16 + 9 + 4 + 1, Odds 190 = 64 + 49 + 36 + 25 + 16) moves like any of the shapes it still contains.</p>
             <p><b>Capturing</b> happens without moving. After every move, first the opponent's men that can now be captured are removed,
             then – if the rule still holds – the mover's own. A man <i>reaches</i> a square if it could move there (straight or flying) were the square free.</p>
@@ -232,7 +233,8 @@
             <b>Ungerade</b> (dunkel) von oben. Jede Seite hat 8 Runde (●), 8 Dreiecke (▲) und 8 Quadrate (■, eines davon ist die Pyramide).</p>
             <p><b>Ziehen</b> (immer auf ein freies Feld): Runde 1 Feld diagonal; Dreiecke genau 2 und Quadrate genau 3 Felder gerade (waagrecht oder senkrecht),
             ohne einen Stein zu überspringen. Dreiecke dürfen außerdem wie der Springer im Schach <b>fliegen</b>, Quadrate wie ein
-            „langer Springer“ (1 + 3); fliegend darf man überspringen, sonst ist Fliegen ein ganz normaler Zug. Die <b>Pyramide</b>
+            „langer Springer“: erst der lange Schritt von 2 bzw. 3 Feldern gerade (alle seine Felder frei, auch das Eckfeld), dann 1 Feld
+            quer dazu. Fliegen ist ein ganz normaler Zug. Die <b>Pyramide</b>
             (Gerade 91 = 36 + 25 + 16 + 9 + 4 + 1, Ungerade 190 = 64 + 49 + 36 + 25 + 16) zieht wie jede Form, die sie noch enthält.</p>
             <p><b>Geschlagen</b> wird ohne zu ziehen. Nach jedem Zug fallen zuerst die Steine der Gegenseite, die jetzt geschlagen werden können,
             danach – falls die Regel dann noch gilt – die eigenen. Ein Stein <i>erreicht</i> ein Feld, wenn er dorthin ziehen oder fliegen könnte, wäre es frei.</p>

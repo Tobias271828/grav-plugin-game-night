@@ -46,10 +46,12 @@ console.log('• Aufstellung und Züge');
     check(JSON.stringify(targets(4)) === JSON.stringify(['4,2', '4,4', '6,2', '6,4']), 'Runde: 1 Feld diagonal', targets(4));
     const tri = targets(20);
     check(tri.includes('8,1') && tri.includes('8,5') && tri.includes('6,3') && !tri.includes('10,3'), 'Dreieck: 2 Felder gerade, nicht über einen Stein', tri);
-    check(tri.includes('9,1') && tri.includes('10,4'), 'Dreieck fliegt wie der Springer (auch über Steine)', tri);
+    check(tri.includes('9,1') && tri.includes('7,5') && !tri.includes('10,4') && !tri.includes('10,2'),
+        'Dreieck fliegt wie der Springer: erst 2 gerade (Weg und Eckfeld frei), dann 1 quer', tri);
     const sq = targets(15);
-    check(sq.includes('5,6') && sq.includes('11,6') && !sq.includes('8,3') && sq.includes('7,3') && !sq.includes('9,3'),
-        'Quadrat: 3 Felder gerade, fliegt 1 + 3, nie auf besetzte Felder', sq);
+    check(sq.includes('5,6') && sq.includes('11,6') && sq.includes('5,5') && sq.includes('11,7') && !sq.includes('8,3'),
+        'Quadrat: 3 Felder gerade oder 3 gerade + 1 quer, nie auf besetzte Felder', sq);
+    check(!sq.includes('7,3') && !sq.includes('9,3'), 'Quadrat fliegt nicht, wenn das Eckfeld des langen Schritts besetzt ist', sq);
 }
 
 console.log('• Schlagen');
@@ -128,6 +130,9 @@ console.log('• Fliegen');
     st = position([[0, 'tri', 20, 5, 3], [1, 'rd', 20, 7, 4], ...SPARE]);
     st = move(st, 3, 1, 5);
     check(st && !has(st, 20, 1), 'Fliegen zählt als Reichweite (Springer-Feld)', st && st.log);
+    st = position([[0, 'tri', 20, 5, 3], [0, 'rd', 2, 6, 3], [1, 'rd', 20, 7, 4], ...SPARE]);
+    st = move(st, 3, 1, 5);
+    check(st && has(st, 20, 1), 'versperrter langer Schritt: fliegend nicht erreichbar, kein Schlag', st && st.log);
 }
 {
     // Einschließen zählt nur die geraden Zielfelder, nicht die fliegenden

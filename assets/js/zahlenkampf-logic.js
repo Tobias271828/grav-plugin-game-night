@@ -2,7 +2,8 @@
  *
  * Regeln: Fulkes erste Variante in der Rekonstruktion von Mark Waks
  * (https://jducoeur.org/game-hist/game-recon-rhyth1.html), Grundlagen nach „Rhythmomachy Basics“,
- * Aufstellung nach Fulkes Bild; offene Punkte so, wie die Spielrunde es festgelegt hat.
+ * Aufstellung nach Fulkes Bild; geändert bzw. festgelegt von der Spielrunde: Fliegen ist ein normaler Zug (auch zum
+ * Schlagen), geschlagene Steine verlassen das Brett, Triumph als Reihe mit Progression (siehe findTriumph).
  *
  * Brett: 16 Reihen (r) × 8 Spalten (c). Seite 0 („Gerade“) hat ihr Lager in den Reihen 0–7,
  * Seite 1 („Ungerade“) in den Reihen 8–15.
@@ -14,8 +15,6 @@ const ZK = (function () {
     const ROWS = 16, COLS = 8;
     const ORTH = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-    const KNIGHT = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
-    const LONG_KNIGHT = [[1, 3], [3, 1], [-1, 3], [-3, 1], [1, -3], [3, -1], [-1, -3], [-3, -1]];
     const STEP = { tri: 2, sq: 3 };   // gerade Züge: genau so viele Felder, ohne zu überspringen
 
     // Aufstellung nach Fulkes Bild: [Reihe, Spalte, Form, Wert]; Spalten von links aus Sicht von „Gerade“
@@ -75,45 +74,55 @@ const ZK = (function () {
         return g;
     }
 
-    /** Zielfelder der gewöhnlichen Züge (ohne Rücksicht auf Weg und Brettrand): Runde diagonal, Dreieck 2, Quadrat 3 gerade. */
+    /** Zielfelder der geraden Züge ohne Rücksicht auf Weg und Brettrand (fürs Einschließen): Runde diagonal, Dreieck 2, Quadrat 3 gerade. */
     function targetSquares(s) {
         const out = [];
         for (const shape of shapes(s)) {
-            if (shape === 'rd') for (const [dr, dc] of DIAG) out.push([s.r + dr, s.c + dc, shape, dr, dc]);
-            else for (const [dr, dc] of ORTH) out.push([s.r + dr * STEP[shape], s.c + dc * STEP[shape], shape, dr, dc]);
+            if (shape === 'rd') for (const [dr, dc] of DIAG) out.push([s.r + dr, s.c + dc]);
+            else for (const [dr, dc] of ORTH) out.push([s.r + dr * STEP[shape], s.c + dc * STEP[shape]]);
         }
         return out;
     }
 
-    /** Felder, die ein Stein mit einem gewöhnlichen Zug erreicht (Weg frei, nicht über den Rand); das Ziel darf besetzt sein. */
+    /**
+     * Felder, die ein Stein mit einem Zug erreicht; das Ziel selbst darf besetzt sein (fürs Schlagen).
+     * - gerade: Runde 1 Feld diagonal, Dreieck 2 bzw. Quadrat 3 Felder gerade, die Felder dazwischen frei;
+     * - fliegend (Dreieck wie der Springer, Quadrat wie ein langer Springer): erst der lange Schritt gerade, alle seine
+     *   Felder frei (auch das Eckfeld, auf dem man kurz steht), dann 1 Feld quer dazu.
+     */
     function reachSquares(s, g) {
-        return targetSquares(s).filter(([r, c, shape, dr, dc]) => {
-            if (!inBoard(r, c)) return false;
-            for (let a = 1; shape !== 'rd' && a < STEP[shape]; a++) {
-                if (g[s.r + dr * a][s.c + dc * a] !== null) return false;
-            }
-            return true;
-        }).map(([r, c]) => [r, c]);
-    }
-
-    /** Fliegende Züge: Dreieck wie der Springer, Quadrat wie ein langer Springer (darf überspringen).
-     *  Fliegen ist ein ganz normaler Zug: man darf dabei schlagen, und fliegend erreichbare Felder zählen beim Schlagen mit. */
-    function flySquares(s) {
         const out = [];
+        const free = (r, c) => inBoard(r, c) && g[r][c] === null;
         for (const shape of shapes(s)) {
-            const vecs = shape === 'tri' ? KNIGHT : shape === 'sq' ? LONG_KNIGHT : [];
-            for (const [dr, dc] of vecs) if (inBoard(s.r + dr, s.c + dc)) out.push([s.r + dr, s.c + dc]);
+            if (shape === 'rd') {
+                for (const [dr, dc] of DIAG) if (inBoard(s.r + dr, s.c + dc)) out.push([s.r + dr, s.c + dc]);
+                continue;
+            }
+            const n = STEP[shape];
+            for (const [dr, dc] of ORTH) {
+                let a = 1;
+                while (a < n && free(s.r + dr * a, s.c + dc * a)) a++;
+                if (a < n) continue;                                 // Weg versperrt
+                const [r, c] = [s.r + dr * n, s.c + dc * n];         // Eckfeld = Ziel des geraden Zugs
+                if (!inBoard(r, c)) continue;
+                out.push([r, c]);
+                if (g[r][c] !== null) continue;                      // Eckfeld besetzt: kein Fliegen in diese Richtung
+                for (const side of [-1, 1]) {
+                    const [fr, fc] = [r + dc * side, c + dr * side];  // 1 Feld quer zum langen Schritt
+                    if (inBoard(fr, fc)) out.push([fr, fc]);
+                }
+            }
         }
         return out;
     }
 
-    const reaches = (s, t, g) => [...reachSquares(s, g), ...flySquares(s)].some(([r, c]) => r === t.r && c === t.c);
+    const reaches = (s, t, g) => reachSquares(s, g).some(([r, c]) => r === t.r && c === t.c);
 
     /**
      * Welche Steine der Gegenseite schlägt `side` in dieser Stellung? Geschlagen wird ohne Ziehen:
-     * - Gleichheit: ein eigener Stein mit gleichem Wert erreicht ihn (gewöhnlich oder fliegend);
+     * - Gleichheit: ein eigener Stein mit gleichem Wert erreicht ihn (gerade oder fliegend, siehe reachSquares);
      * - Addition/Subtraktion/Multiplikation/Division: zwei eigene Steine erreichen ihn beide;
-     * - Einschließen: alle Zielfelder seiner gewöhnlichen Züge sind besetzt oder außerhalb des Bretts,
+     * - Einschließen: alle Zielfelder seiner geraden Züge sind besetzt oder außerhalb des Bretts,
      *   und mindestens einer der blockierenden Steine gehört `side`.
      * Die ganze Pyramide fällt nie durch Gleichheit (nur durch die Rechenarten mit ihrem Gesamtwert oder durch
      * Einschließen); einzelne Teile fallen durch Gleichheit oder eine Rechenart mit ihrem Wert.
@@ -234,11 +243,11 @@ const ZK = (function () {
 
     // ------------------------------------------------------------------ Züge
 
-    /** Alle Züge eines Steins auf freie Felder, gewöhnlich oder fliegend: [{ r, c }]. */
+    /** Alle Züge eines Steins auf freie Felder, gerade oder fliegend: [{ r, c }]. */
     function movesFor(state, stone) {
         const g = grid(state);
         const out = [];
-        for (const [r, c] of [...reachSquares(stone, g), ...flySquares(stone)]) {
+        for (const [r, c] of reachSquares(stone, g)) {
             if (g[r][c] === null && !out.some(m => m.r === r && m.c === c)) out.push({ r, c });
         }
         return out;
@@ -264,8 +273,6 @@ const ZK = (function () {
         state.log.push(entry);
         if (state.log.length > 200) state.log.shift();
 
-        let winner = side;
-        let end = null;
         const victory = who => {
             const tri = findTriumph(state, who);
             if (tri) {
@@ -274,7 +281,8 @@ const ZK = (function () {
             }
             return countVictory(state, who);
         };
-        end = victory(side);
+        let winner = side;
+        let end = victory(side);
         if (!end && (end = victory(1 - side))) winner = 1 - side;   // durch die Gegenschläge
         if (!end && !hasAnyMove(state, 1 - side)) end = { type: 'stuck' };
         if (end) {
