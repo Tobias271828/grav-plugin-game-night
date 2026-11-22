@@ -6,6 +6,7 @@ third-party services. German and English user interface.
 | Game | Players | |
 |---|---|---|
 | **Trombone** | 2–8 | Bluffing card game (poker hands across everyone's cards) |
+| **Rithmomachia** | 2 | Medieval battle of numbers (Zahlenkampfspiel): capture by calculating, win by harmony |
 | **Who am I?** | 2–12 | Everyone gets a secret term from someone else and has to guess it |
 | **Four-player chess** | 4 | Hand and brain: per team, one picks the piece type, the other moves |
 | **Four in a Row** | 2 | Classic connection game |

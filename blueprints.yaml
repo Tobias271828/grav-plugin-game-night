@@ -74,6 +74,7 @@ form:
           help: 'Leave empty for all games.'
           options:
             trombone: Trombone
+            zahlenkampf: Rithmomachia
             werbinich: Who am I?
             handbrain: Four-player chess
             connect4: Four in a Row

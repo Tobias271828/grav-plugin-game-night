@@ -30,9 +30,9 @@ const MAX_STATE     = 200000;           // Bytes
 const MAX_BODY      = MAX_STATE + 20000;
 const ROOM_ID       = '/^[0-9a-f]{8}([0-9a-f]{8})?$/';   // 8 oder 16 Hex-Zeichen, siehe 'create'
 const MAX_RECENT    = 20;                                 // „Deine Tische“ im Browser (app.js: RECENT_MAX)
-const GAMES         = ['connect4' => 2, 'handbrain' => 4, 'zahlenkampf' => 2, 'trombone' => 8, 'werbinich' => 12, 'konferenz' => 20];
+const GAMES         = ['trombone' => 8, 'zahlenkampf' => 2, 'werbinich' => 12, 'handbrain' => 4, 'connect4' => 2, 'konferenz' => 20];
 const SERVER_GAMES  = ['trombone', 'werbinich', 'konferenz'];   // Spiele mit Geheimnissen: Logik auf dem Server
-const WIP_GAMES     = ['zahlenkampf', 'konferenz'];             // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
+const WIP_GAMES     = ['konferenz'];                            // noch in Arbeit: nur, wenn ausdrücklich in 'games' eingetragen
 
 /** Voreinstellungen einer Instanz (Schlüssel wie in der Konfiguration). */
 const DEFAULTS = [

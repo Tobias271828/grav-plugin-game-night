@@ -82,7 +82,6 @@
         name: t('Zahlenkampfspiel', 'Rithmomachia'),
         icon: pyramidIcon,
         desc: t('Gewinne durch Harmonie!', 'Win through harmony!'),
-        wip: true,   // Regeln werden noch erprobt
         seats: SIDES,
         rules: rulesHtml(),
 

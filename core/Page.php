@@ -13,8 +13,9 @@ namespace GameNight;
 
 /** Skripte in Ladereihenfolge (auch für das Grav-Template). */
 // Reihenfolge der Spiele = Reihenfolge auf der Übersicht
-const SCRIPTS = ['chess.min.js', 'core.js', 'trombone.js', 'werbinich.js', 'handbrain.js', 'connect4.js',
-                 'konferenz.js', 'zahlenkampf-logic.js', 'zahlenkampf.js', 'app.js'];
+// Reihenfolge der Spiel-Skripte = Reihenfolge in der Übersicht
+const SCRIPTS = ['chess.min.js', 'core.js', 'trombone.js', 'zahlenkampf-logic.js', 'zahlenkampf.js', 'werbinich.js',
+                 'handbrain.js', 'connect4.js', 'konferenz.js', 'app.js'];
 
 /** Neuestes Änderungsdatum der Assets (für ?v=…): Browser laden nach einem Update die neuen Dateien. */
 function asset_version(string $assetDir): string

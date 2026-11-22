@@ -17,8 +17,8 @@ enabled: true
 #     creates_per_hour: 30       # new tables per IP address and hour (0 = unlimited)
 #     rooms_per_client: 20       # existing tables per IP address (counted per calendar day; 0 = unlimited)
 #     contact_url: ''            # link for feedback shown on the overview page (empty = none)
-#     games: []                  # offered games (empty = all): trombone, werbinich (Who am I?),
-#                                # handbrain (four-player chess), connect4 (Four in a Row)
+#     games: []                  # offered games (empty = all): trombone, zahlenkampf (Rithmomachia),
+#                                # werbinich (Who am I?), handbrain (four-player chess), connect4 (Four in a Row)
 #
 # Behind a reverse proxy (e.g. Cloudflare): on Grav 2 the limits use the visitor address that Grav determines –
 # enable the matching header in system.yaml → http_x_forwarded (e.g. cf_connecting_ip: true). On Grav 1.7 (which

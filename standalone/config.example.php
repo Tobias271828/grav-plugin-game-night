@@ -18,8 +18,8 @@ return [
     'creates_per_hour'     => 30,     // new tables per IP address and hour (0 = unlimited)
     'rooms_per_client'     => 20,     // existing tables per IP address (counted per calendar day; 0 = unlimited)
 
-    // Offered games (empty = all): 'trombone', 'werbinich' (Who am I?), 'handbrain' (four-player chess),
-    // 'connect4' (Four in a Row). Existing tables of other games keep working.
+    // Offered games (empty = all): 'trombone', 'zahlenkampf' (Rithmomachia), 'werbinich' (Who am I?),
+    // 'handbrain' (four-player chess), 'connect4' (Four in a Row). Existing tables of other games keep working.
     'games' => [],
 
     // Behind a reverse proxy (Cloudflare, nginx, …) all requests come from the proxy's address, so all

@@ -585,8 +585,9 @@ check($left === ['aaaaaa02', 'aaaaaa03'], 'Aufräumen nach empty_room_ttl und ro
 
 $c = GameNight\instance_config(['games' => ['quatsch'], 'max_rooms' => -5, 'requests_per_minute' => -1, 'unbekannt' => 1], "$dir/x", $dir);
 check($c['games'] === array_values(array_diff(array_keys(GameNight\GAMES), GameNight\WIP_GAMES)), 'unbekannte Spiele → alle fertigen Spiele', $c['games']);
-check(!in_array('zahlenkampf', GameNight\instance_config([], "$dir/x", $dir)['games'], true), 'Spiele in Arbeit sind standardmäßig aus');
-check(in_array('zahlenkampf', GameNight\instance_config(['games' => ['zahlenkampf']], "$dir/x", $dir)['games'], true), '… lassen sich aber ausdrücklich einschalten');
+check(!in_array('konferenz', GameNight\instance_config([], "$dir/x", $dir)['games'], true), 'Spiele in Arbeit sind standardmäßig aus');
+check(in_array('konferenz', GameNight\instance_config(['games' => ['konferenz']], "$dir/x", $dir)['games'], true), '… lassen sich aber ausdrücklich einschalten');
+check(in_array('zahlenkampf', GameNight\instance_config([], "$dir/x", $dir)['games'], true), 'Zahlenkampfspiel ist standardmäßig an');
 
 // Besucheradresse hinter einem Proxy (nur mit proxy_ip_header; bei Listen zählt der letzte, vom Proxy angehängte Eintrag)
 $_SERVER['REMOTE_ADDR'] = '10.0.0.1';

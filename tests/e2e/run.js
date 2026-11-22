@@ -1247,7 +1247,8 @@ defineSuite('lobby-b', async (browser, players) => {
     await check(!(await P.hasText('Offene Tische')), 'no public table list in lobby=false mode', [P]);
     await check((await P.text('#app')).includes('Noch keine.'), '“Deine Tische” is empty at first', [P]);
     const offered = await P.page.evaluate(() => [...document.querySelectorAll('.game-card .game-name')].map(e => e.firstChild.textContent.trim()));
-    await check(offered.length === 4 && !offered.includes('Zahlenkampfspiel'), `default: all finished games, no work in progress (${offered.join(', ')})`, [P]);
+    await check(offered.join() === 'Trombone,Zahlenkampfspiel,Wer bin ich?,Schach zu viert,Vier in einer Reihe',
+        `default: all finished games in this order, no work in progress (${offered.join(', ')})`, [P]);
     await P.checkNoHScroll('lobby=false overview (mobile)');
     const url = await P.createTable('Trombone');
     const id = await P.roomId();
