@@ -458,6 +458,8 @@
 .kf-stepper { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-bottom: .45rem; }
 .kf-remaining { margin: 0; text-align: left; }
 .kf-news { font-weight: 400; }
+.kf-removal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem; text-align: left; }
+.kf-removal + .kf-removal { margin-top: .4rem; }
 
 /* ======================================================================
    Schmale Bildschirme (Handy)

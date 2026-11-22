@@ -328,6 +328,22 @@ function with_room(string $id, callable $fn)
     return $room;
 }
 
+/**
+ * Spiele mit Server-Logik: Sitzt keine mitspielende Person ($playing) mehr mit ihrem Token an ihrem Platz
+ * (alle weg, entfernt oder mit neuem Browser zurück)? Dann darf jede Person am Tisch das Spiel abbrechen –
+ * sonst bliebe es für immer hängen.
+ */
+function orphaned(array $room, callable $playing): bool
+{
+    foreach ($room['state']['players'] ?? [] as $p) {
+        $seatToken = $room['seats'][$p['seat']]['token'] ?? null;
+        if ($playing($p) && is_string($seatToken) && isset($p['token']) && hash_equals($p['token'], $seatToken)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Tisch ohne geheime Tokens (und ohne fremde Karten/Begriffe) für die Ausgabe an Platz $seat / Token $token. */
 function public_room(array $room, ?int $seat, string $token): array
 {

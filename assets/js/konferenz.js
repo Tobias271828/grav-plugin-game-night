@@ -336,8 +336,27 @@
         const history = log.length ? h('details', { class: 'tb-history', ...keepOpen('log') }, h('summary', {}, t('Verlauf', 'History')),
             h('ul', {}, log.map(e => h('li', {}, `${e.at === 'day' ? t('Tag', 'Day') : t('Nacht', 'Night')} ${e.round}: `, eventText(e, nameOf, false))))) : null;
 
-        // --- Unten: gehen, abbrechen, neues Spiel
+        // --- Herausnehmen Abwesender: mindestens die Hälfte der übrigen Mitspielenden muss bestätigen
         const running = state.phase !== 'over';
+        const aliveSeats = alive.map(p => p.seat);
+        const removals = running ? Object.entries(state.removals || {}).map(([seat, by]) => {
+            const target = Number(seat);
+            const yes = by.filter(x => aliveSeats.includes(x));
+            const need = Math.ceil(aliveSeats.filter(x => x !== target).length / 2);
+            const mineToo = me && yes.includes(me.seat);
+            const what = target === state.shooter
+                ? t(`${nameOf(target)} ist nicht mehr da – Mitreißen verfallen lassen?`, `${nameOf(target)} is gone – skip the take-down?`)
+                : t(`${nameOf(target)} ist nicht mehr da – aus der Konferenz nehmen?`, `${nameOf(target)} is gone – remove from the conference?`);
+            return h('div', { class: 'kf-removal' },
+                h('span', {}, what, ' ', h('span', { class: 'muted' }, t(`(${yes.length} von ${need} bestätigt)`, `(${yes.length} of ${need} confirmed)`))),
+                me && me.alive && me.seat !== target ? h('button', {
+                    class: 'btn small' + (mineToo ? '' : ' primary'),
+                    onclick: () => doAction('remove', { seat: target, withdraw: mineToo }),
+                }, mineToo ? t('zurückziehen', 'withdraw') : t('bestätigen', 'confirm')) : null);
+        }) : [];
+        const removalBox = removals.length ? h('div', { class: 'tb-composer kf-task' }, removals) : null;
+
+        // --- Unten: gehen, abbrechen, neues Spiel
         const extras = h('div', { class: 'tb-extras' },
             mySeat === null && room.seats.some(s => !s) ? h('button', { class: 'btn primary', onclick: () => ctx.sit(room.seats.findIndex(s => !s)) }, t('Mitmachen', 'Join')) : null,
             !running && mySeat !== null ? h('button', { class: 'btn primary tb-big', onclick: () => doAction('lobby') }, t('Neues Spiel', 'New game')) : null,
@@ -352,12 +371,14 @@
                     const name = prompt(t('Wer ist nicht mehr da? (Name)', 'Who is gone? (name)'), '');
                     const p = others.find(o => name && o.name.toLowerCase() === name.trim().toLowerCase());
                     if (name && !p) toast(t('Diesen Namen gibt es nicht', 'No such name'));
-                    if (p && confirm(t(`${p.name} aus der Konferenz nehmen? Die Rolle wird dann bekannt.`, `Remove ${p.name} from the conference? Their role will be revealed.`))) doAction('remove', { seat: p.seat });
+                    if (p && confirm(t(`Vorschlagen, ${p.name} aus der Konferenz zu nehmen? Das geschieht, sobald mindestens die Hälfte der übrigen Mitspielenden bestätigt hat; die Rolle wird dann bekannt.`,
+                        `Propose removing ${p.name} from the conference? This happens once at least half of the other players have confirmed; their role will then be revealed.`))) doAction('remove', { seat: p.seat });
                 },
             }, t('Abwesende Person herausnehmen', 'Remove an absent person')) : null,
-            running && me && me.alive && state.phase === 'shot' && state.shooter !== me.seat ? h('button', {
+            running && me && me.alive && state.phase === 'shot' && state.shooter !== me.seat && !(state.removals || {})[state.shooter] ? h('button', {
                 class: 'link muted', onclick: () => {
-                    if (confirm(t('Die Physiker*in ist nicht mehr da? Dann verfällt ihr Mitreißen.', 'The physicist is gone? Then nobody is taken down.'))) doAction('remove', { seat: state.shooter });
+                    if (confirm(t('Die Physiker*in ist nicht mehr da? Vorschlagen, dass ihr Mitreißen verfällt (mindestens die Hälfte muss bestätigen)?',
+                        'The physicist is gone? Propose skipping the take-down (at least half must confirm)?'))) doAction('remove', { seat: state.shooter });
                 },
             }, t('Physiker*in ist nicht mehr da', 'The physicist is gone')) : null,
             running && ((me && me.alive) || (mySeat !== null && state.orphaned)) ? h('button', {
@@ -366,7 +387,7 @@
         );
 
         return h('div', { class: 'tb tb-game' },
-            h('div', { class: 'tb-main' }, status, news, myRole, taskBox, list, remainingBox),
+            h('div', { class: 'tb-main' }, status, news, myRole, taskBox, removalBox, list, remainingBox),
             h('div', { class: 'tb-side' }, history, extras));
     }
 

@@ -166,6 +166,9 @@ kf_maybe_resolve_day($s);
 check($s['phase'] === 'shot' && $s['shots'] === [2], 'Physiker*in abgewählt → darf mitreißen', $s['phase']);
 $room = kf_room($s);
 kf_do($room, 3, 'remove', ['seat' => 2]);
+kf_do($room, 4, 'remove', ['seat' => 2]);
+check($room['state']['phase'] === 'shot', 'Mitreißen verfallen lassen: 2 von 6 reichen nicht', $room['state']['removals']);
+kf_do($room, 5, 'remove', ['seat' => 2]);
 check($room['state']['phase'] === 'night' && !$room['state']['shots'],
     'Physiker*in nicht mehr da: die anderen lassen das Mitreißen verfallen', $room['state']['phase']);
 
@@ -351,3 +354,29 @@ $p3 = $j['room']['state']['players'][3];
 check(!$p3['alive'] && $p3['role'] !== null, 'wer die Konferenz verlässt, ist draußen und die Rolle bekannt', $p3);
 [$code] = api('party', ['action' => 'game', 'room' => $kr, 'op' => 'leave', 'token' => $kt[3]]);
 check($code === 403, 'wer schon gegangen ist, kann nichts mehr tun', $code);
+
+// Abwesende herausnehmen: erst, wenn mindestens die Hälfte der übrigen Mitspielenden bestätigt hat
+[, $json] = api('party', ['action' => 'create', 'game' => 'konferenz']);
+$ar = $json['id'];
+$at = [];
+for ($i = 0; $i < 6; $i++) {
+    $at[$i] = token();
+    api('party', ['action' => 'sit', 'room' => $ar, 'seat' => $i, 'name' => "A$i", 'token' => $at[$i]]);
+}
+api('party', ['action' => 'game', 'room' => $ar, 'op' => 'start', 'players' => 6, 'token' => $at[0]]);
+$rm = fn(int $by, array $extra = []) => api('party', ['action' => 'game', 'room' => $ar, 'op' => 'remove', 'seat' => 2, 'token' => $at[$by]] + $extra);
+[$code, $j] = $rm(0);
+check($code === 200 && $j['room']['state']['players'][2]['alive'] && $j['room']['state']['removals'] == ['2' => [0]],
+    'herausnehmen: erst ein Vorschlag, für alle sichtbar', [$code, $j['room']['state']['removals'] ?? $j]);
+[$code, $j] = $rm(0);
+check(($j['room']['state']['removals'] ?? null) == ['2' => [0]], 'doppelt bestätigen zählt nicht doppelt', $j['room']['state']['removals'] ?? $j);
+$rm(1);
+$rm(1, ['withdraw' => true]);
+[, $j] = $rm(3);
+check($j['room']['state']['players'][2]['alive'] && ($j['room']['state']['removals'] ?? null) == ['2' => [0, 3]],
+    'Bestätigung lässt sich zurückziehen; 2 von 5 reichen nicht', $j['room']['state']['removals'] ?? $j);
+[$code] = api('party', ['action' => 'game', 'room' => $ar, 'op' => 'remove', 'seat' => 2, 'token' => $at[2]]);
+check($code === 400, 'sich selbst herausnehmen geht nicht (dafür: „Konferenz verlassen“)', $code);
+[$code, $j] = $rm(4);
+check($code === 200 && !$j['room']['state']['players'][2]['alive'] && !(array)$j['room']['state']['removals'],
+    'mit der dritten Bestätigung (Hälfte von 5, aufgerundet) ist die Person draußen', [$code, $j['room']['state']['removals'] ?? $j]);

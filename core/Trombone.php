@@ -106,19 +106,10 @@ function tb_me(array $s, ?int $seat, string $token): ?array
     return null;
 }
 
-/**
- * Sitzt keine aktive Person mehr mit ihrem Token an ihrem Platz (alle weg, entfernt oder mit neuem Browser
- * zurück)? Dann darf jede Person am Tisch das Spiel abbrechen – sonst bliebe es für immer hängen.
- */
+/** Siehe orphaned() in Api.php: mitspielend = aktiv (nicht ausgeschieden oder entfernt). */
 function tb_orphaned(array $room): bool
 {
-    foreach (tb_active($room['state']) as $p) {
-        $seatToken = $room['seats'][$p['seat']]['token'] ?? null;
-        if (is_string($seatToken) && isset($p['token']) && hash_equals($p['token'], $seatToken)) {
-            return false;
-        }
-    }
-    return true;
+    return orphaned($room, __NAMESPACE__ . '\tb_is_active');
 }
 
 /** Nächste aktive Person nach $seat in Sitzreihenfolge. */

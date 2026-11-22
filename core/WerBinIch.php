@@ -45,16 +45,10 @@ function wb_me(array $s, ?int $seat, string $token): ?array
     return null;
 }
 
-/** Wie tb_orphaned: Sitzt keine mitspielende Person mehr mit ihrem Token an ihrem Platz? */
+/** Siehe orphaned() in Api.php: mitspielend = noch nicht ausgestiegen. */
 function wb_orphaned(array $room): bool
 {
-    foreach ($room['state']['players'] as $p) {
-        $seatToken = $room['seats'][$p['seat']]['token'] ?? null;
-        if (!$p['out'] && is_string($seatToken) && isset($p['token']) && hash_equals($p['token'], $seatToken)) {
-            return false;
-        }
-    }
-    return true;
+    return orphaned($room, fn($p) => !$p['out']);
 }
 
 /** Plätze aller (noch) Mitspielenden. */

@@ -176,6 +176,7 @@ class Player {
             try {
                 if (d.type() === 'prompt') {
                     if (/heißt|your name/i.test(msg)) await d.accept(this.name);
+                    else if (this.promptAnswer !== undefined) await d.accept(this.promptAnswer);
                     else await d.accept(d.defaultValue());
                 } else if (d.type() === 'confirm') {
                     if (this.confirmAnswer) await d.accept(); else await d.dismiss();
@@ -1071,6 +1072,23 @@ defineSuite('konferenz', async (browser, players) => {
     await all(players.slice(0, 5), p => p.waitText('Felix verlässt die Konferenz vorzeitig'));
     const box = await leaver.text('.kf-me');
     await check(box.toLowerCase().includes('du hast die konferenz verlassen'), `whoever leaves sees it in their role box (“${box.slice(0, 80)}”)`, [leaver]);
+
+    step('removing an absent person needs at least half of the others (here 2 of 4)');
+    if (await A.page.evaluate(() => current.room.state.phase === 'over')) {
+        step('(game already over after leaving – skipped)');
+        return;
+    }
+    const [, B, , , E] = players;
+    A.confirmAnswer = true;
+    A.promptAnswer = 'Emmy';
+    await A.click('.tb-extras .link', 'Abwesende Person herausnehmen');
+    await B.waitText('Emmy ist nicht mehr da', '.kf-removal');
+    await check((await B.text('.kf-removal')).includes('1 von 2'), 'the proposal is shown to everyone with its count', [B]);
+    await check(!(await E.exists('.kf-removal button')), 'the person concerned cannot confirm', [E]);
+    await snap([B], 'kf-removal');
+    await B.click('.kf-removal button', 'bestätigen');
+    await A.waitText('Emmy verlässt die Konferenz vorzeitig');
+    await check(!(await A.exists('.kf-removal')), 'after enough confirmations the proposal is gone', [A]);
 });
 
 defineSuite('edge', async (browser, players) => {

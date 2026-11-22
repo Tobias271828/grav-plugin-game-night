@@ -40,6 +40,7 @@ function kf_init(int $game = 0, ?array $config = null): array
         'vorbild' => null,      // Doktorand*in: Vorbild
         'lean'    => [],        // Ergebnisse des Lean-Profis: [{round, target, konstr}]
         'shots'   => [],        // Physiker*in muss noch mitreißen: [Platz]
+        'removals' => [],       // Herausnehmen Abwesender: Platz => [Plätze, die bestätigt haben]
         'after'   => null,      // nach den Schüssen weiter mit 'day' oder 'night'
         'day1Done' => false,    // erste Abstimmung vorbei (Hausmeister*in)
         'log'     => [],        // öffentlich: [{round, at: 'night'|'day', type, seat, role, …}]
@@ -101,16 +102,10 @@ function kf_me(array $s, ?int $seat, string $token): ?array
     return null;
 }
 
-/** Wie tb_orphaned: Sitzt keine noch mitspielende Person mehr an ihrem Platz? */
+/** Siehe orphaned() in Api.php: mitspielend = noch auf der Konferenz. */
 function kf_orphaned(array $room): bool
 {
-    foreach ($room['state']['players'] as $p) {
-        $seatToken = $room['seats'][$p['seat']]['token'] ?? null;
-        if ($p['alive'] && is_string($seatToken) && hash_equals($p['token'], $seatToken)) {
-            return false;
-        }
-    }
-    return true;
+    return orphaned($room, fn($p) => $p['alive']);
 }
 
 function &kf_player(array &$s, int $seat): ?array
@@ -186,6 +181,7 @@ function kf_leave(array &$s, int $seat, string $cause, string $at): void
         return;
     }
     $p['alive'] = false;
+    unset($s['removals'][$seat]);   // offene Anfrage zum Herausnehmen erledigt sich
     $s['log'][] = ['round' => $s['round'], 'at' => $at, 'type' => 'leave', 'seat' => $seat, 'role' => $p['role'],
                    'converted' => !empty($p['converted']), 'cause' => $cause];
     $role = $p['role'];
@@ -393,6 +389,7 @@ function kf_view(array $s, ?int $seat, string $token): array
         'mark' => $s['phase'] === 'day' ? $s['mark'] : null,   // öffentlich, aber nicht wer markiert hat
         'votes' => $s['phase'] === 'day' ? $s['votes'] : [],
         'shooter' => $s['phase'] === 'shot' ? ($s['shots'][0] ?? null) : null,
+        'removals' => (object)($s['removals'] ?? []),   // Platz => [Plätze, die das Herausnehmen bestätigt haben]
         'players' => [], 'remaining' => [],
     ];
     foreach ($s['players'] as $p) {
@@ -637,6 +634,7 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
             }
             $t = kf_target($s, $in, $me['seat']);
             array_shift($s['shots']);
+            unset($s['removals'][$me['seat']]);
             kf_leave($s, $t, 'physik', $s['after'] === 'day' ? 'night' : 'day');
             if (!$s['shots']) {
                 $next = $s['after'];
@@ -647,21 +645,39 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
 
         case 'leave':
         case 'remove':
-            // Selbst gehen (Anschlusstermin, Bett …) oder eine abwesende Person herausnehmen
+            // Selbst gehen (Anschlusstermin, Bett …) oder eine abwesende Person herausnehmen. Herausnehmen
+            // (auch: das Mitreißen einer Physiker*in verfallen lassen, die nicht mehr da ist) geschieht erst,
+            // wenn mindestens die Hälfte der übrigen Mitspielenden bestätigt hat.
             if (!$running || $mine === null) {
                 fail('Nur Mitspielende können das', 403);
             }
-            if ($op === 'remove' && $s['phase'] === 'shot' && ($in['seat'] ?? null) === ($s['shots'][0] ?? null)) {
-                // Die Physiker*in ist schon ausgeschieden und nicht mehr da: Schuss verfällt
-                array_shift($s['shots']);
-                if (!$s['shots']) {
-                    $next = $s['after'];
-                    $s['after'] = null;
-                    kf_continue($s, $next);
+            if ($op === 'remove') {
+                $skipShot = $s['phase'] === 'shot' && ($in['seat'] ?? null) === ($s['shots'][0] ?? null);
+                $t = $skipShot ? $s['shots'][0] : kf_target($s, $in, $mine, 'seat');
+                $alive = kf_alive($s);
+                $by = array_values(array_intersect($s['removals'][$t] ?? [], $alive));   // nur noch Mitspielende
+                $by = !empty($in['withdraw']) ? array_values(array_diff($by, [$mine])) : array_values(array_unique([...$by, $mine]));
+                if (count($by) * 2 < count(array_diff($alive, [$t]))) {
+                    if ($by) {
+                        $s['removals'][$t] = $by;
+                    } else {
+                        unset($s['removals'][$t]);
+                    }
+                    return;
                 }
-                return;
+                unset($s['removals'][$t]);
+                if ($skipShot) {
+                    array_shift($s['shots']);
+                    if (!$s['shots']) {
+                        $next = $s['after'];
+                        $s['after'] = null;
+                        kf_continue($s, $next);
+                    }
+                    return;
+                }
+            } else {
+                $t = $mine;
             }
-            $t = $op === 'leave' ? $mine : kf_target($s, $in, $mine, 'seat');
             kf_leave($s, $t, 'quit', $s['phase'] === 'day' ? 'day' : 'night');
             $s['shots'] = array_values(array_diff($s['shots'], [$t]));
             if ($s['phase'] === 'shot' && !$s['shots']) {
