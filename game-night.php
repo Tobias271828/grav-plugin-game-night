@@ -110,9 +110,10 @@ class GameNightPlugin extends Plugin
         $this->loadCore();
         $config = \GameNight\instance_config($settings, "$base/$name", "$base/.state");
         // Besucheradresse wie Grav sie ermittelt (folgt system.http_x_forwarded, z. B. hinter Cloudflare) –
-        // aber erst ab Grav 2: Grav 1.7 vertraut X-Forwarded-For standardmäßig, damit könnte jeder Besucher
-        // die Anfragelimits umgehen. Dort gilt REMOTE_ADDR bzw. die Instanz-Einstellung proxy_ip_header.
-        if (version_compare(GRAV_VERSION, '2.0', '>=')) {
+        // ab Grav 2 und 1.7.53.11: Ältere 1.7-Versionen vertrauen X-Forwarded-For standardmäßig, damit könnte
+        // jeder Besucher die Anfragelimits umgehen. Dort gilt REMOTE_ADDR. Die Instanz-Einstellung
+        // proxy_ip_header geht immer vor (core/Api.php setzt dann client_ip).
+        if (version_compare(GRAV_VERSION, '1.7.53.11', '>=')) {
             $config['client_ip'] ??= $this->grav['uri']->ip();
         }
         \GameNight\run($config);

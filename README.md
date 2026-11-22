@@ -46,10 +46,11 @@ The template extends your theme's `partials/base.html.twig`. The interface follo
 (German or English). With the [Login plugin](https://github.com/getgrav/grav-plugin-login), an instance's API
 follows the access rules of its page.
 
-**Behind a reverse proxy** (e.g. Cloudflare), all visitors would share the rate limits. On Grav 2, enable the
-header your proxy sets in `system.yaml` → `http_x_forwarded` (e.g. `cf_connecting_ip: true`). Grav 1.7 trusts
-`X-Forwarded-For` by default, so the plugin ignores Grav's setting there: set `proxy_ip_header` in the instance
-instead (e.g. `CF-Connecting-IP`).
+**Behind a reverse proxy** (e.g. Cloudflare), all visitors would share the rate limits. On Grav 2 and on
+Grav 1.7.53.11 or newer, enable the header your proxy sets in `system.yaml` → `http_x_forwarded`
+(e.g. `cf_connecting_ip: true`). Older Grav 1.7 versions trust `X-Forwarded-For` by default, so the plugin
+ignores Grav's setting there: update Grav, or set `proxy_ip_header` in the instance (e.g. `CF-Connecting-IP`).
+If `proxy_ip_header` is set, it is used on every Grav version.
 
 ## Standalone
 

@@ -20,9 +20,9 @@ enabled: true
 #     games: []                  # offered games (empty = all): trombone, zahlenkampf (Rithmomachia),
 #                                # werbinich (Who am I?), handbrain (four-player chess), connect4 (Four in a Row)
 #
-# Behind a reverse proxy (e.g. Cloudflare): on Grav 2 the limits use the visitor address that Grav determines –
-# enable the matching header in system.yaml → http_x_forwarded (e.g. cf_connecting_ip: true). On Grav 1.7 (which
-# trusts X-Forwarded-For by default) set per instance:
+# Behind a reverse proxy (e.g. Cloudflare): on Grav 2 and Grav 1.7.53.11+ the limits use the visitor address that
+# Grav determines – enable the matching header in system.yaml → http_x_forwarded (e.g. cf_connecting_ip: true).
+# On older Grav 1.7 (which trusts X-Forwarded-For by default) set per instance (if set, used on every version):
 #     proxy_ip_header: ''        # header YOUR proxy sets, e.g. CF-Connecting-IP (X-Forwarded-For: last entry)
 #
 # Example (the older form "instances: { friends: { route: … } }" keyed by name works as well):
