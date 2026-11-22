@@ -94,13 +94,32 @@ function valid_state(string $game, $state, int $seats): bool
                 && (($s['shape'] ?? null) === 'P' ? is_list_of($s['parts'] ?? null, 6, $part) && $s['parts'] : $shape($s['shape'] ?? null));
             $square = fn($q) => is_list_of($q, 2, fn($v) => is_int($v)) && count($q) === 2 && int_in($q[0], 0, 15) && int_in($q[1], 0, 7);
             $last = $state['last'] ?? null;
-            return is_list_of($state['stones'] ?? null, 48, $stone)
+            // Protokoll und Spielende: alles, was die Oberfläche anzeigt (zahlenkampf.js: logText, endText)
+            $num = fn($v) => int_in($v, 0, 1000000);
+            $ref = fn($x) => is_array($x) && int_in($x['v'] ?? null, 1, 100000)
+                && in_array($x['shape'] ?? null, ['rd', 'tri', 'sq', 'P'], true) && in_array($x['of'] ?? null, [null, 'P'], true);
+            $why = fn($w) => is_array($w) && in_array($w['t'] ?? null, ['eq', 'add', 'sub', 'mul', 'div', 'obl'], true)
+                && (!isset($w['a']) || $num($w['a'])) && (!isset($w['b']) || $num($w['b']));
+            $cap = fn($c) => is_array($c) && $ref($c['stone'] ?? null) && $why($c['why'] ?? null);
+            $entry = fn($e) => is_array($e) && int_in($e['side'] ?? null, 0, 1) && $ref($e['stone'] ?? null)
+                && is_list_of($e['caps'] ?? null, 48, $cap) && is_list_of($e['lost'] ?? null, 48, $cap);
+            $end = $state['end'] ?? null;
+            $endOk = $end === null || (is_array($end) && match ($end['type'] ?? null) {
+                'triumph' => in_array($end['kind'] ?? null, ['arith', 'geo', 'harm'], true) && is_list_of($end['values'] ?? null, 8, $num),
+                'bodies' => $num($end['n'] ?? null),
+                'goods' => $num($end['sum'] ?? null),
+                'resign' => int_in($end['seat'] ?? null, 0, 1),
+                'stuck' => true,
+                default => false,
+            });
+            return $endOk && in_array($state['winner'] ?? null, [null, 0, 1], true)
+                && is_list_of($state['stones'] ?? null, 48, $stone)
                 && is_list_of($state['taken'] ?? null, 2, fn($t) => is_array($t) && int_in($t['n'] ?? null, 0, 48) && int_in($t['sum'] ?? null, 0, 1000000))
                 && count($state['taken']) === 2
                 && is_list_of($state['captured'] ?? [], 48, $square)
                 && (($state['triumph'] ?? null) === null || is_list_of($state['triumph'], 8, fn($v) => int_in($v, 0, 100000)))
                 && ($last === null || (is_array($last) && $square($last['from'] ?? null) && $square($last['to'] ?? null)))
-                && is_list_of($state['log'] ?? [], 200, 'is_array');
+                && is_list_of($state['log'] ?? [], 200, $entry);
     }
     return true;   // Spiele mit Server-Logik: Zustand kommt nie vom Browser
 }

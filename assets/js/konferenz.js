@@ -127,7 +127,7 @@
                 finally { busy = false; }
             };
             if (state.phase === 'lobby') return fill(root, renderLobby(ctx, doAction));
-            return fill(root, renderGame(ctx, doAction));
+            return fill(root, renderGame(root, ctx, doAction));
         },
     });
 
@@ -195,7 +195,7 @@
 
     // ------------------------------------------------------------------ Laufendes Spiel
 
-    function renderGame(ctx, doAction) {
+    function renderGame(root, ctx, doAction) {
         const { state, room, mySeat } = ctx;
         const players = state.players || [];
         const nameOf = seat => (players.find(p => p.seat === seat) || {}).name || '?';
@@ -205,7 +205,7 @@
         const task = myTasks[0] || null;
         const key = `${room.id}:${state.game}:${state.round}:${state.phase}`;
         if (pick.key !== key) pick = { key, betreuer: [], gap: false };
-        const redraw = () => Games.konferenz.render(document.querySelector('.game-area'), ctx);
+        const redraw = () => Games.konferenz.render(root, ctx);
 
         // --- Kopf
         let status;
@@ -355,6 +355,11 @@
                     if (p && confirm(t(`${p.name} aus der Konferenz nehmen? Die Rolle wird dann bekannt.`, `Remove ${p.name} from the conference? Their role will be revealed.`))) doAction('remove', { seat: p.seat });
                 },
             }, t('Abwesende Person herausnehmen', 'Remove an absent person')) : null,
+            running && me && me.alive && state.phase === 'shot' && state.shooter !== me.seat ? h('button', {
+                class: 'link muted', onclick: () => {
+                    if (confirm(t('Die Physiker*in ist nicht mehr da? Dann verfällt ihr Mitreißen.', 'The physicist is gone? Then nobody is taken down.'))) doAction('remove', { seat: state.shooter });
+                },
+            }, t('Physiker*in ist nicht mehr da', 'The physicist is gone')) : null,
             running && ((me && me.alive) || (mySeat !== null && state.orphaned)) ? h('button', {
                 class: 'link muted', onclick: () => { if (confirm(t('Spiel für alle abbrechen?', 'Abort the game for everyone?'))) doAction('lobby'); },
             }, t('Spiel abbrechen', 'Abort game')) : null,

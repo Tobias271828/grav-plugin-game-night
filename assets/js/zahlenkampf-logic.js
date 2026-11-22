@@ -116,8 +116,6 @@ const ZK = (function () {
         return out;
     }
 
-    const reaches = (s, t, g) => reachSquares(s, g).some(([r, c]) => r === t.r && c === t.c);
-
     /**
      * Welche Steine der Gegenseite schlägt `side` in dieser Stellung? Geschlagen wird ohne Ziehen:
      * - Gleichheit: ein eigener Stein mit gleichem Wert erreicht ihn (gerade oder fliegend, siehe reachSquares);
@@ -130,11 +128,13 @@ const ZK = (function () {
      */
     function findCaptures(state, side) {
         const g = grid(state);
-        const mine = state.stones.filter(s => s.side === side);
+        // Reichweite jedes eigenen Steins einmal berechnen: Feld-Schlüssel r * COLS + c
+        const mine = state.stones.filter(s => s.side === side)
+            .map(s => ({ v: value(s), reach: new Set(reachSquares(s, g).map(([r, c]) => r * COLS + c)) }));
         const out = [];
         for (const t of state.stones) {
             if (t.side === side) continue;
-            const atk = mine.filter(s => reaches(s, t, g)).map(value);
+            const atk = mine.filter(m => m.reach.has(t.r * COLS + t.c)).map(m => m.v);
             const byValue = (v, equality) => {
                 if (equality && atk.includes(v)) return { t: 'eq', a: v };
                 for (let i = 0; i < atk.length; i++) {

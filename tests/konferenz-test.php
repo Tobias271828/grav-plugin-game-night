@@ -126,6 +126,58 @@ $s['night']['victim'] = 1;
 kf_maybe_dawn($s);
 check(($s['winner']['party'] ?? null) === 'koautor' && $s['winner']['seats'] === [0, 2], 'Koautor*innen aus verschiedenen Parteien gewinnen als letzte zwei', $s['winner']);
 
+// Aktionen direkt über kf_act (Raum mit denselben Tokens wie in kf_state)
+function kf_room(array $s): array
+{
+    return ['state' => $s, 'seats' => array_map(fn($p) => ['name' => $p['name'], 'token' => $p['token']], $s['players'])];
+}
+/** kf_act direkt aufrufen. fail() beendet das Skript (wie im Server): dann als Fehlschlag melden. */
+function kf_do(array &$room, int $seat, string $op, array $in = []): void
+{
+    $GLOBALS['kf_acting'] = "$op von Platz $seat";
+    GameNight\kf_act($room, $seat, str_pad((string)$seat, 32, 'a'), $op, $in);
+    $GLOBALS['kf_acting'] = null;
+}
+register_shutdown_function(function () {
+    if (!empty($GLOBALS['kf_acting'])) {
+        echo "\n  ✗ Aktion abgelehnt: {$GLOBALS['kf_acting']}\n";
+        exit(1);
+    }
+});
+
+$room = kf_room(kf_state(['konstr', 'lean', 'mathe', 'mathe', 'mathe', 'mathe']));
+kf_do($room, 0, 'noact');
+kf_do($room, 1, 'noact');
+check($room['state']['phase'] === 'day', '„keine Aktion“ erledigt die Aufgabe, die Nacht endet', $room['state']['phase']);
+
+$room = kf_room(kf_state(['konstr', 'ki', 'mathe', 'mathe', 'mathe', 'mathe']));
+$room['state']['potions']['gap'] = false;   // nur noch der Rettungstrank
+kf_do($room, 0, 'propose', ['target' => 2]);
+kf_do($room, 0, 'choose', ['target' => 2]);
+kf_do($room, 1, 'act', ['what' => 'heal']);
+check($room['state']['phase'] === 'day' && in_array(2, kf_alive_seats($room['state']), true),
+    'KI-Nerd rettet mit dem letzten Trank → die Nacht endet trotzdem', $room['state']['phase']);
+
+$s = kf_state(['konstr', 'konstr', 'physik', 'mathe', 'mathe', 'mathe', 'mathe']);
+$s['phase'] = 'day';
+$s['night'] = null;
+$s['votes'] = [0 => 2, 1 => 2, 2 => 0, 3 => 2, 4 => 2, 5 => 0, 6 => 1];
+kf_maybe_resolve_day($s);
+check($s['phase'] === 'shot' && $s['shots'] === [2], 'Physiker*in abgewählt → darf mitreißen', $s['phase']);
+$room = kf_room($s);
+kf_do($room, 3, 'remove', ['seat' => 2]);
+check($room['state']['phase'] === 'night' && !$room['state']['shots'],
+    'Physiker*in nicht mehr da: die anderen lassen das Mitreißen verfallen', $room['state']['phase']);
+
+$s = kf_state(['konstr', 'reviewer', 'mathe', 'mathe', 'mathe', 'mathe']);
+$s['phase'] = 'day';
+$s['night'] = null;
+$s['mark'] = 3;
+$s['votes'] = [0 => 3, 1 => 2, 2 => 4, 4 => 2, 5 => 0];   // Platz 3 (markiert) ist tagsüber gegangen
+$s['players'][3]['alive'] = false;
+kf_maybe_resolve_day($s);
+check(!in_array(2, kf_alive_seats($s), true), 'Stimmen und Markierung für Gegangene zählen nicht mehr: die Mehrheit unter den Verbliebenen geht', end($s['log']));
+
 // ---------------------------------------------------------------------------
 section('Mathekonferenz: komplette Spiele über die API');
 

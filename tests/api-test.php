@@ -208,6 +208,11 @@ $zk = fn(array $stone = []) => [
     'last' => null, 'captured' => [], 'triumph' => null, 'log' => []];
 [$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $zk()]);
 check($code === 200, 'Zahlenkampf: gültiger Startzustand angenommen', $code);
+$zkLog = ['side' => 0, 'stone' => ['v' => 8, 'shape' => 'rd'], 'lost' => [],
+          'caps' => [['stone' => ['v' => 16, 'shape' => 'rd', 'of' => 'P'], 'why' => ['t' => 'mul', 'a' => 8, 'b' => 2]]]];
+[$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' =>
+    ['log' => [$zkLog], 'over' => true, 'winner' => 0, 'end' => ['type' => 'triumph', 'kind' => 'arith', 'values' => [2, 4, 6, 8]]] + $zk()]);
+check($code === 200, 'Zahlenkampf: Protokoll und Triumph angenommen', $code);
 foreach ([
     'riesige Zahl'        => $zk(['v' => 9007199254740881]),
     '__proto__ als Reihe' => $zk(['r' => '__proto__', 'c' => 'map']),
@@ -216,6 +221,9 @@ foreach ([
     'Pyramide ohne Teile' => $zk(['shape' => 'P']),
     'zu viele Steine'     => ['stones' => array_fill(0, 49, $zk()['stones'][0])] + $zk(),
     'Zählerstand'         => ['taken' => [['n' => 'x', 'sum' => 0], ['n' => 0, 'sum' => 0]]] + $zk(),
+    'Triumph ohne Werte'  => ['end' => ['type' => 'triumph', 'kind' => 'arith', 'values' => 1]] + $zk(),
+    'unbekanntes Ende'    => ['end' => ['type' => 'zauber']] + $zk(),
+    'Protokoll kaputt'    => ['log' => [['caps' => 5]]] + $zk(),
 ] as $what => $state) {
     [$code] = api('party', ['action' => 'create', 'game' => 'zahlenkampf', 'state' => $state]);
     check($code === 400, "Zahlenkampf: manipulierter Startzustand abgelehnt: $what", $code);

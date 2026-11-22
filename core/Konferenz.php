@@ -159,20 +159,20 @@ function kf_night_tasks(array $s): array
     }
     foreach (['lean', 'numerik', 'reviewer'] as $role) {
         $seat = kf_role_seat($s, $role);
-        if ($seat !== null && !isset($n['acts'][$role])) {
+        if ($seat !== null && !array_key_exists($role, $n['acts'])) {   // null = „keine Aktion“
             $tasks[$role] = $seat;
         }
     }
     if ($s['round'] === 1) {
         foreach (['betreuer', 'doktorand'] as $role) {
             $seat = kf_role_seat($s, $role);
-            if ($seat !== null && !isset($n['acts'][$role])) {
+            if ($seat !== null && !array_key_exists($role, $n['acts'])) {
                 $tasks[$role] = $seat;
             }
         }
     }
     $ki = kf_role_seat($s, 'ki');
-    if ($ki !== null && ($s['potions']['heal'] || $s['potions']['gap']) && !isset($n['acts']['ki'])) {
+    if ($ki !== null && ($s['potions']['heal'] || $s['potions']['gap']) && !array_key_exists('ki', $n['acts'])) {
         $tasks['ki'] = $ki;   // erst wählbar, wenn 'victim' feststeht (siehe kf_act)
     }
     return $tasks;
@@ -339,18 +339,19 @@ function kf_maybe_resolve_day(array &$s): void
             return;
         }
     }
+    // nur Stimmen von und für Verbliebene (wer tagsüber gegangen ist, zählt nicht mehr); -1 = niemand
     $count = [];
     foreach ($s['votes'] as $by => $target) {
-        if (in_array((int)$by, $alive, true)) {
+        if (in_array((int)$by, $alive, true) && ($target === -1 || in_array($target, $alive, true))) {
             $count[$target] = ($count[$target] ?? 0) + 1;
         }
     }
-    if ($s['mark'] !== null) {
+    if ($s['mark'] !== null && in_array($s['mark'], $alive, true)) {
         $count[$s['mark']] = ($count[$s['mark']] ?? 0) + 2;
     }
     arsort($count);
     $top = array_keys($count, max($count ?: [0]), true);
-    $out = count($top) === 1 && $top[0] !== -1 && in_array($top[0], $alive, true) ? $top[0] : null;
+    $out = count($top) === 1 && $top[0] !== -1 ? $top[0] : null;
     $s['log'][] = ['round' => $s['round'], 'at' => 'day', 'type' => 'vote', 'votes' => $s['votes'], 'mark' => $s['mark'], 'out' => $out];
     $firstDay = !$s['day1Done'];
     $s['day1Done'] = true;
@@ -445,7 +446,7 @@ function kf_view(array $s, ?int $seat, string $token): array
                 $my['victim'] = array_key_exists('victim', $n) ? $n['victim'] : false;
             }
             foreach (['numerik', 'reviewer', 'betreuer', 'doktorand'] as $r) {
-                if ($role === $r && isset($n['acts'][$r])) {
+                if ($role === $r && array_key_exists($r, $n['acts'])) {
                     $my['done'] = $n['acts'][$r];
                 }
             }
@@ -462,7 +463,6 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
     $me = kf_me($s, $seat, $token);
     $mine = $me && $me['alive'] ? $me['seat'] : null;   // null für Zuschauende und Ausgeschiedene
     $running = !in_array($s['phase'], ['lobby', 'over'], true);
-    $seated = array_keys(array_filter($room['seats']));
 
     switch ($op) {
         case 'config':
@@ -593,7 +593,7 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
                             }
                             $s['potions']['heal'] = false;
                             $n['acts']['kiHeal'] = $n['victim'];
-                            return;   // danach noch „Lücke“ oder „fertig“
+                            break;   // danach noch „Lücke“ oder „fertig“ – oder, war es der letzte Trank, ist die Nacht vorbei
                         }
                         if ($what === 'gap') {
                             if (!$s['potions']['gap']) {
@@ -601,7 +601,7 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
                             }
                             $s['potions']['gap'] = false;
                             $n['acts']['kiGap'] = kf_target($s, $in, $mine);
-                            return;
+                            break;
                         }
                         if ($what !== 'done') {
                             fail('Unbekannte Aktion');
@@ -650,6 +650,16 @@ function kf_act(array &$room, int $seat, string $token, string $op, array $in): 
             // Selbst gehen (Anschlusstermin, Bett …) oder eine abwesende Person herausnehmen
             if (!$running || $mine === null) {
                 fail('Nur Mitspielende können das', 403);
+            }
+            if ($op === 'remove' && $s['phase'] === 'shot' && ($in['seat'] ?? null) === ($s['shots'][0] ?? null)) {
+                // Die Physiker*in ist schon ausgeschieden und nicht mehr da: Schuss verfällt
+                array_shift($s['shots']);
+                if (!$s['shots']) {
+                    $next = $s['after'];
+                    $s['after'] = null;
+                    kf_continue($s, $next);
+                }
+                return;
             }
             $t = $op === 'leave' ? $mine : kf_target($s, $in, $mine, 'seat');
             kf_leave($s, $t, 'quit', $s['phase'] === 'day' ? 'day' : 'night');
