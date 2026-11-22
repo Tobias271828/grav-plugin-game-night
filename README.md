@@ -3,6 +3,9 @@
 Browser games for game nights with friends – on your own web space, without a database, accounts or
 third-party services. German and English user interface.
 
+**Try it:** a public instance (standalone version) runs at **[games.tobimath.de](https://games.tobimath.de)** –
+create a table and send its link to the people you want to play with.
+
 | Game | Players | |
 |---|---|---|
 | **Trombone** | 2–8 | Bluffing card game (poker hands across everyone's cards) |

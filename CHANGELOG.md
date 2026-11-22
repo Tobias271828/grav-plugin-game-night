@@ -1,3 +1,14 @@
+# v1.2.0
+## 2026-11-22
+
+1. [](#new)
+    * Rithmomachia (Zahlenkampfspiel) is finished and offered by default, second in the overview: the medieval battle of numbers for two, after Fulke's first variant with the rules of our game night (captures by equality, sum, difference, product, exact quotient or surrounding; flying moves; victory by triumph, bodies or goods), with progress bars for the victory goals and a preview of what a move captures
+2. [](#improved)
+    * README: link to the public instance on games.tobimath.de to try the games
+    * Game states of Rithmomachia sent by browsers are checked more strictly (including the move log and the end of the game)
+3. [](#bugfix)
+    * “Your tables” (overview without table list) no longer keeps tables that were deleted by someone else or expired; they disappear without having to open them
+
 # v1.1.0
 ## 2026-11-18
 

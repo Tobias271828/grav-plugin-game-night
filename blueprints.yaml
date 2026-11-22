@@ -1,7 +1,7 @@
 name: Game Night
 slug: game-night
 type: plugin
-version: 1.1.0
+version: 1.2.0
 description: Browser games for game nights with friends (Trombone, Four in a Row, four-player chess, Who am I?, …). Several independent instances per site – private or public. No database, no accounts.
 icon: gamepad
 author:
