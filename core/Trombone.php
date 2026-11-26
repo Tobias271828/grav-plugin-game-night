@@ -23,7 +23,7 @@ function tb_init(): array
     return [
         'phase'   => 'lobby',          // lobby | bidding | reveal | over
         'deck'    => null,             // wird beim Start festgelegt (bei 3 Personen vorher gemeinsam gewählt)
-        'players' => [],               // [{seat, name, cards, out}]
+        'players' => [],               // [{seat, name, cards, out}]; Bots zusätzlich mit bot: true (siehe TromboneBot.php)
         'round'   => 0,
         'deal'    => 0,                // zählt Austeilen und Neubeginn der Gebote; Gebote müssen ihn mitschicken
         'starter' => null,
@@ -38,6 +38,7 @@ function tb_init(): array
         'over'    => false,
         'proposal' => null,            // Vorschlag, jemanden aufzunehmen: {seat, name, cards, by, yes: [Plätze]}
         'proposalResult' => null,      // {name, accepted, by} – zuletzt entschiedener Vorschlag
+        'cred'    => [],               // seat => Glaubwürdigkeitszähler dieses Spiels, siehe tb_cred_update()
     ];
 }
 
@@ -48,6 +49,9 @@ function tb_ranks(string $deck): array
 
 function tb_new_deck(string $deck): array
 {
+    if (tb_test_decks()) {
+        return tb_test_decks(null, true);
+    }
     $cards = [];
     foreach (tb_ranks($deck) as $r) {
         foreach (['S', 'H', 'D', 'C'] as $s) {
@@ -64,6 +68,84 @@ function tb_new_deck(string $deck): array
         [$cards[$i], $cards[$j]] = [$cards[$j], $cards[$i]];
     }
     return $cards;
+}
+
+/**
+ * Nur für Tests (Abgleich der Regeln mit der Python-Simulation): vorgegebene Decks, die tb_new_deck()
+ * der Reihe nach ausgibt. Über die API nicht erreichbar – nur PHP-Code im selben Prozess kann sie setzen.
+ */
+function tb_test_decks(?array $set = null, bool $shift = false): array
+{
+    static $decks = [];
+    if ($set !== null) {
+        $decks = array_values($set);
+    }
+    return $shift ? (array)array_shift($decks) : $decks;
+}
+
+/** Stellen, nach denen die Deckung der Gebote getrennt gezählt wird: erstes, zweites, späteres Gebot einer Runde. */
+const TB_CRED_POS = 3;
+
+/** Leere Glaubwürdigkeitszähler eines Platzes; auch für Zähler in einem veralteten Format. */
+function tb_cred(array $s, int $seat): array
+{
+    $c = $s['cred'][(string)$seat] ?? null;
+    return is_array($c) && count($c) === 2 * TB_CRED_POS + 5 ? $c : array_fill(0, 2 * TB_CRED_POS + 5, 0);
+}
+
+/**
+ * Glaubwürdigkeitszähler nach einem Zweifel fortschreiben (Eingaben für den Bot, siehe TromboneBot.php).
+ * Pro Platz 11 ganze Zahlen:
+ *   0..5  je Stelle p = 0, 1, 2 (erstes, zweites, drittes oder späteres eigenes Gebot einer Runde):
+ *         Zahl der Gebote [2p] und Summe ihrer Deckung in Sechzigsteln [2p + 1]
+ *   6     Züge mit vorliegendem Gebot      7  davon Zweifel      8  davon gewonnene Zweifel
+ *   9     eigene Gebote, die angezweifelt wurden      10  davon wahr
+ * Deckung eines Gebots = Anteil der benötigten Karten, den die Person selbst in der Hand hatte (Joker
+ * zählen mit). Wer zuerst blufft und sich später an die eigenen Karten hält (oder umgekehrt), fällt so
+ * auf. Beruht nur auf offengelegten Karten und gilt für ein Spiel; ausgewertet werden die laufenden
+ * Gebote, nicht prevBids.
+ */
+function tb_cred_update(array &$s, int $challenger, bool $true): void
+{
+    $nth = [];
+    $lastSeat = null;
+    foreach ($s['bids'] as $i => $e) {
+        $c = tb_cred($s, $e['seat']);
+        $need = TB_NEED[$e['bid']['t']];
+        $count = [];
+        $jokers = 0;
+        foreach ($s['hands'][(string)$e['seat']] ?? [] as $card) {
+            if ($card === 'X') {
+                $jokers++;
+            } else {
+                $r = (int)substr($card, 0, -1);
+                $count[$r] = ($count[$r] ?? 0) + 1;
+            }
+        }
+        $covered = min($need[0], $count[$e['bid']['a']] ?? 0) + $jokers;
+        if (isset($need[1])) {
+            $covered += min($need[1], $count[$e['bid']['b']] ?? 0);
+        }
+        $total = array_sum($need);
+        $p = min($nth[$e['seat']] ?? 0, TB_CRED_POS - 1);
+        $nth[$e['seat']] = ($nth[$e['seat']] ?? 0) + 1;
+        $c[2 * $p]++;
+        $c[2 * $p + 1] += intdiv(min($covered, $total) * 60, $total);
+        $c[2 * TB_CRED_POS] += $i > 0 ? 1 : 0;
+        $s['cred'][(string)$e['seat']] = $c;
+        $lastSeat = $e['seat'];
+    }
+    $c = tb_cred($s, $challenger);
+    $c[2 * TB_CRED_POS]++;
+    $c[2 * TB_CRED_POS + 1]++;
+    $c[2 * TB_CRED_POS + 2] += $true ? 0 : 1;
+    $s['cred'][(string)$challenger] = $c;
+    if ($lastSeat !== null) {
+        $c = tb_cred($s, $lastSeat);
+        $c[2 * TB_CRED_POS + 3]++;
+        $c[2 * TB_CRED_POS + 4] += $true ? 1 : 0;
+        $s['cred'][(string)$lastSeat] = $c;
+    }
 }
 
 /** Spielt in der laufenden Runde mit (nicht raus, nicht erst beim nächsten Austeilen dabei). */
@@ -205,7 +287,7 @@ function tb_bid_true(array $bid, array $cards): bool
     return $missing <= $jokers;
 }
 
-/** Haben alle aktiven Mitspielenden zugestimmt? Dann die Person aufnehmen. */
+/** Haben alle aktiven Mitspielenden zugestimmt (Bots stimmen nicht ab)? Dann die Person aufnehmen. */
 function tb_check_proposal(array &$room): void
 {
     $s = &$room['state'];
@@ -214,19 +296,25 @@ function tb_check_proposal(array &$room): void
         return;
     }
     foreach (tb_active($s) as $p) {
-        if (!in_array($p['seat'], $prop['yes'], true)) {
+        if (empty($p['bot']) && !in_array($p['seat'], $prop['yes'], true)) {
             return;
         }
     }
     $s['proposal'] = null;
+    $bot = !empty($prop['bot']) ? ['bot' => true] : [];   // nur fürs Abzeichen in der Anzeige
     $seated = $room['seats'][$prop['seat']] ?? null;
     if ($seated === null || !hash_equals($prop['token'], $seated['token'])) {
         // inzwischen aufgestanden (oder jemand anderes sitzt jetzt dort)
-        $s['proposalResult'] = ['round' => $s['round'], 'name' => $prop['name'], 'accepted' => false, 'by' => null];
+        $s['proposalResult'] = ['round' => $s['round'], 'name' => $prop['name'], 'accepted' => false, 'by' => null] + $bot;
         return;
     }
+    // Ein Bot, der aus dem Spiel genommen wurde und noch am Tisch sitzt, bleibt beim Wiederaufnehmen ein Bot
     $entry = ['seat' => $prop['seat'], 'name' => $seated['name'], 'token' => $seated['token'],
-              'cards' => $prop['cards'], 'out' => false, 'joining' => true];
+              'cards' => $prop['cards'], 'out' => false, 'joining' => true] + (!empty($seated['bot']) ? ['bot' => true] : []);
+    $prev = tb_player($s, $prop['seat']);
+    if (!$prev || !hash_equals((string)($prev['token'] ?? ''), $seated['token'])) {
+        unset($s['cred'][(string)$prop['seat']]);   // andere Person auf diesem Platz: Zähler beginnen bei null
+    }
     $found = false;
     foreach ($s['players'] as &$p) {
         if ($p['seat'] === $prop['seat']) {
@@ -239,7 +327,7 @@ function tb_check_proposal(array &$room): void
         $s['players'][] = $entry;   // reiht sich hinten in die Reihenfolge ein
     }
     // In der Auflösung beginnt gleich eine neue Runde → sofort dabei; sonst beim nächsten Austeilen
-    $s['proposalResult'] = ['round' => $s['round'], 'name' => $seated['name'], 'accepted' => true, 'by' => null];
+    $s['proposalResult'] = ['round' => $s['round'], 'name' => $seated['name'], 'accepted' => true, 'by' => null] + $bot;
 }
 
 /** Was eine bestimmte Person sehen darf. */
@@ -249,9 +337,10 @@ function tb_view(array $s, ?int $seat, string $token): array
     $s['meSeat'] = $me ? $me['seat'] : null;                         // spiele ich (mit diesem Browser) mit?
     // Wer erst mit der nächsten Runde einsteigt, hat noch keine Karten (unter dem Platz liegen evtl. noch fremde)
     $s['myHand'] = $me && tb_is_active($me) ? ($s['hands'][(string)$me['seat']] ?? null) : null;
-    unset($s['hands']);
+    unset($s['hands'], $s['cred']);   // die Zähler sind nicht geheim, aber nur für den Bot da
+    unset($s['botDue'], $s['botTurn']);   // Denkpause des Bots, siehe tbot_schedule()
     foreach ($s['players'] as &$p) {
-        unset($p['token']);
+        unset($p['token']);   // auch die Server-Token der Bots; ihr Kennzeichen 'bot' bleibt
     }
     unset($p);
     if ($s['proposal']) {
@@ -276,11 +365,20 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
             $seated = [];
             foreach ($room['seats'] as $i => $p) {
                 if ($p !== null) {
-                    $seated[] = ['seat' => $i, 'name' => $p['name'], 'token' => $p['token'], 'cards' => 1, 'out' => false];
+                    $seated[] = ['seat' => $i, 'name' => $p['name'], 'token' => $p['token'], 'cards' => 1, 'out' => false]
+                        + (!empty($p['bot']) ? ['bot' => true] : []);   // das Kennzeichen kommt nur vom Platz (Aktion 'bot')
                 }
             }
             if (count($seated) < 2) {
                 fail('Mindestens zwei Personen müssen mitspielen');
+            }
+            $bots = count(array_filter($seated, fn($p) => !empty($p['bot'])));
+            if ($bots === count($seated)) {
+                fail('Mindestens ein Mensch muss mitspielen');
+            }
+            // Gewichtsdatei inzwischen weg oder Bots ausgeschaltet: Das Spiel bliebe beim ersten Bot-Zug hängen
+            if ($bots && tbot_offered() === 0) {
+                fail('Die Bots können hier gerade nicht mitspielen – bitte zuerst entfernen', 409);
             }
             // Hat sich inzwischen jemand hingesetzt/ist aufgestanden? Dann erst neu prüfen lassen
             // (sonst könnte z. B. ein 3er-Spiel ohne Deckwahl mit dem 2er-Deck starten).
@@ -337,6 +435,7 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
             }
             $all = array_merge(...array_values($s['hands']));
             $true = tb_bid_true($last['bid'], $all);
+            tb_cred_update($s, $seat, $true);
             $loser = $true ? $seat : $last['seat'];
             $winner = $true ? $last['seat'] : $seat;
             $lp = &tb_player($s, $loser);
@@ -472,7 +571,7 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
                 'seat' => $target, 'name' => $room['seats'][$target]['name'],
                 'token' => $room['seats'][$target]['token'],   // nur genau diese Person wird aufgenommen
                 'cards' => $cards, 'by' => $seat, 'yes' => [$seat],
-            ];
+            ] + (!empty($room['seats'][$target]['bot']) ? ['bot' => true] : []);
             $s['proposalResult'] = null;
             tb_check_proposal($room);
             return;
@@ -486,7 +585,7 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
             }
             if (($in['yes'] ?? null) !== true) {
                 $s['proposalResult'] = ['round' => $s['round'], 'name' => $s['proposal']['name'], 'accepted' => false, 'by' => $seat,
-                                        'withdrawn' => $seat === $s['proposal']['by']];
+                                        'withdrawn' => $seat === $s['proposal']['by']] + (!empty($s['proposal']['bot']) ? ['bot' => true] : []);
                 $s['proposal'] = null;
                 return;
             }
