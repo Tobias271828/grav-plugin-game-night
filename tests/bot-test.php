@@ -223,6 +223,11 @@ check(tbot_prob('52', 6, 42, 0, 0, 0, 1, 0)[1] === 12271512, 'Nenner C(48, 42) e
 check(count(tbot_bids()) === 312, '312 Gebote');
 
 section('Abgleich mit Python (tests/ref/trombone-ref.jsonl)');
+if (!is_file(REF_DIR . '/test-net.bin') || !is_file(REF_DIR . '/trombone-ref.jsonl')) {
+    // Die Referenz liegt nicht im Repository: Sie entsteht aus dem Trainingscode (nur Python mit numpy nötig)
+    fwrite(STDERR, "tests/ref/ fehlt. Zuerst erzeugen:  pip install numpy && python3 training/gen_refs.py\n");
+    exit(2);
+}
 $refNet = tbot_net(REF_DIR . '/test-net.bin');
 check($refNet !== null, 'Testnetz der Referenz lädt');
 $lines = @file(REF_DIR . '/trombone-ref.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];

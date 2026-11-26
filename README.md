@@ -106,7 +106,8 @@ not part of the release packages). Replacing the network means replacing the wei
 ## Development
 
 `php tests/api-test.php` runs the API tests and `php tests/bot-test.php` the tests of the Trombone bot (both also
-on every push), `tests/e2e/` plays every game in Chromium,
+on every push; the bot tests need the reference files `tests/ref/`, generated once with
+`pip install numpy && python3 training/gen_refs.py`), `tests/e2e/` plays every game in Chromium,
 `php build.php` builds both packages into `dist/`, and `tools/server-check.php` checks a web space before
 installing. Releases: bump `version` in `blueprints.yaml`, add a `# v<version>` section to `CHANGELOG.md` and push
 a tag with the version number; the GitHub Action publishes the Grav package here and the standalone package in
