@@ -4,8 +4,9 @@
 (own localStorage), all actions go through the UI. It starts its own PHP development server with
 a fresh temporary data folder and two instances (via `router.php`):
 
-- `/a/` – with table list (`lobby: true`), footer link and contact link
-- `/b/` – without table list (`lobby: false`)
+- `/a/` – with table list (`lobby: true`), footer link and contact link; offers Trombone bots (a weight file with
+  random weights is generated for the test, thinking time shortened)
+- `/b/` – without table list (`lobby: false`) and without weight file (no bots)
 
 Rate limits are switched off for the test instances (all browsers share one IP address).
 
@@ -17,6 +18,7 @@ Rate limits are switched off for the test instances (all browsers share one IP a
 | `handbrain` | 4 players: only legal piece types offered, wrong piece type not selectable, Scholar's mate (capture + checkmate), new round with captures, resign, pawn promotion |
 | `zahlenkampf` | 2 players: progress bars, a few moves chosen by the game logic (capturing moves preferred, red target squares, log), a prepared position with two captures via the board (captured man leaves the board and is counted, 11 / 12) → victory of bodies, new round, resign |
 | `trombone` | 3 players: deck choice, bids via the composer, “Trombone!” notice, reveal, simultaneous “Nächste Runde”, removing a player, “Person aufnehmen” with vote, rejoining with 2 cards, rounds until somebody loses, “Neues Spiel” |
+| `trombone-bot` | 2 players + 2 bots: “Bot hinzufügen” / “Bot entfernen”, “Bot” badge only at the server's bots (not at a human called “Bot”) in the seat list, current bid, bid list, reveal and history, bots bid by themselves and never click “Nächste Runde”, removing a bot from the game and proposing it again (bots do not vote), bots stay seated after aborting, no bots without weight file |
 | `werbinich` | 3 players: picking (incl. “andere Person wählen”), typing is not interrupted by others' updates, changing a term, nobody sees (or receives) their own term, “Erraten!” notices, game over |
 | `konferenz` | 6 players (2 on phones): adjusting the role setup, a whole maths conference played through the buttons (proposals/choice of the constructivists, all night roles, open votes, physicist), only allowed roles visible to everyone, all roles revealed at the end, leaving early |
 | `edge` | 24-character names and 60-character terms on a phone, double click, renaming while seated, leaving a seat, spectators on a phone, removing a player in Who am I?, aborting Trombone |

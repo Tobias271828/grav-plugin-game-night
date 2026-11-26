@@ -586,6 +586,13 @@ function tb_act(array &$room, int $seat, string $token, string $op, array $in): 
             if (($in['yes'] ?? null) !== true) {
                 $s['proposalResult'] = ['round' => $s['round'], 'name' => $s['proposal']['name'], 'accepted' => false, 'by' => $seat,
                                         'withdrawn' => $seat === $s['proposal']['by']] + (!empty($s['proposal']['bot']) ? ['bot' => true] : []);
+                // Ein Bot, der nur für diese Abstimmung an den Tisch gesetzt wurde (noch nie mitgespielt hat),
+                // verschwindet bei einer Ablehnung wieder
+                $ps = $s['proposal']['seat'];
+                if (!empty($s['proposal']['bot']) && !empty($room['seats'][$ps]['bot']) && !tb_player($s, $ps)
+                    && hash_equals($s['proposal']['token'], $room['seats'][$ps]['token'])) {
+                    $room['seats'][$ps] = null;
+                }
                 $s['proposal'] = null;
                 return;
             }

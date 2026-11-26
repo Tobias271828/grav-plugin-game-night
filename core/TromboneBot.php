@@ -600,7 +600,7 @@ function tbot_schedule(array &$room): void
     }
     $key = ($s['deal'] ?? 0) . '.' . count($s['bids']) . '.' . $seat;
     if (($s['botTurn'] ?? null) !== $key || !isset($s['botDue'])) {
-        [$min, $max] = cfg()['bot_delay'] ?? [2000, 6000];
+        [$min, $max] = cfg()['bot_delay'] ?? [2000, 4000];
         $s['botTurn'] = $key;
         $s['botDue'] = tbot_now() + random_int((int)$min, max((int)$min, (int)$max));
     }

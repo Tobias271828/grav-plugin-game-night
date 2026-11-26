@@ -105,6 +105,8 @@
 .game-go { flex: none; padding: .4rem .7rem; border-radius: var(--r-btn); background: var(--accent); color: #fff; font-size: .9rem; font-weight: 600; }
 .game-card:hover .game-go { background: var(--accent-2); }
 .badge { display: inline-block; white-space: nowrap; margin-left: .4rem; padding: 0 .4rem; border-radius: 6px; background: var(--warn-bg); color: #8a6100; font-size: .72rem; font-weight: 600; vertical-align: .1em; }
+/* Bot-Abzeichen neben einem Namen (Trombone); gesetzt nur anhand des Kennzeichens vom Server, siehe botBadge() */
+.bot-badge { display: inline-block; white-space: nowrap; margin-left: .3rem; padding: 0 .3rem; border-radius: 5px; background: #e4e9f2; color: #3b4a63; font-size: .68rem; font-weight: 700; line-height: 1.5; letter-spacing: .03em; vertical-align: .12em; cursor: help; }
 /* Spielsymbol im hellgrünen Kreis (Grün wie die Navigation des Themes) */
 .game-icon {
     flex: none; width: 3rem; height: 3rem; border-radius: 50%; background: #e8f3e8;
@@ -397,6 +399,7 @@
 .tb-add { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-box); padding: .8rem 1rem; }
 .tb-add .tb-label { text-align: left; }
 .tb-add-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; }
+.tb-addbot { align-self: center; }
 
 /* ======================================================================
    Wer bin ich? (nutzt die Bausteine von Trombone: .tb, .tb-players, .tb-chip …)

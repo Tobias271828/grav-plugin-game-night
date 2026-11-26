@@ -27,6 +27,8 @@ if (!preg_match('#^/([a-z0-9_-]+)/(api)?$#', $path, $m) || !isset($conf['instanc
 require $root . '/core/Api.php';
 $settings = $conf['instances'][$m[1]];
 $config = GameNight\instance_config($settings, $settings['data_dir'], $conf['state_dir']);
+// nur in den Tests einstellbar: Gewichtsdatei und Denkpause [von, bis] des Trombone-Bots
+$config = array_intersect_key($settings, ['net_file' => 1, 'bot_delay' => 1]) + $config;
 
 if (($m[2] ?? '') === 'api') {
     GameNight\run($config);   // beendet die Anfrage

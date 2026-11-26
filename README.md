@@ -8,7 +8,7 @@ create a table and send its link to the people you want to play with.
 
 | Game | Players | |
 |---|---|---|
-| **Trombone** | 2–8 | Bluffing card game (poker hands across everyone's cards) |
+| **Trombone** | 2–8 | Bluffing card game (poker hands across everyone's cards), optionally with bots |
 | **Rithmomachia** | 2 | Medieval battle of numbers (Zahlenkampfspiel): capture by calculating, win by harmony |
 | **Who am I?** | 2–12 | Everyone gets a secret term from someone else and has to guess it |
 | **Four-player chess** | 4 | Hand and brain: per team, one picks the piece type, the other moves |
@@ -63,6 +63,20 @@ If `proxy_ip_header` is set, it is used on every Grav version.
 The language follows the browser and can be switched in the footer. For public instances, add your legal
 notice and privacy policy via `footer_links`.
 
+## Trombone bots
+
+Seated players can add bots to a Trombone table (“TromboneZero”, T0 for short; marked with a “Bot” badge) – before the
+start, or during a game if all human players agree.
+A bot draws its moves from a small neural network that was trained by self-play and is evaluated in plain PHP from
+the weight file `core/trombone-net.bin`. Settings per instance: `bots` (default `true`) switches them on or off,
+`max_bots` (default `7`) limits the bots per table. Without a matching weight file an instance offers no bots;
+everything else keeps working. A game needs at least one human, and a table at which only bots are left is deleted
+at once. There is no background process: a bot moves inside the next request of a person who has the table open,
+after a short thinking time.
+
+The network is trained locally, without any human games, with the code in `training/` (see `training/README.md`;
+not part of the release packages). Replacing the network means replacing the weight file.
+
 ## Security
 
 - Table files start with a PHP line that exits immediately, so they cannot be downloaded even without
@@ -71,6 +85,18 @@ notice and privacy policy via `footer_links`.
   limits for requests and new tables. Only a daily rotating HMAC of the address is stored.
 - Game states sent by browsers are checked for size and structure. Trombone and Who am I? run entirely on the
   server; in the other games players at the table could cheat, but not break other players' pages.
+- Trombone bots are seats that only the server can mark as bots – no request can set or remove the flag, and the
+  “Bot” badge never depends on a name. They run on your server inside the requests of the people at the table, see
+  only their own cards, and no data leaves the server.
+- Bots cost computing time (one move: loading the weight file plus one pass through the network), so they have
+  limits of their own: `max_bots` per table, `max_bots_per_client` (default 21) per IP address,
+  `max_bots_total` (default 70) per instance, and `bot_moves_per_minute` (default 600 per instance, a quarter
+  of that per IP address) – when that budget is used up, bots simply move later. A table at which only bots are
+  left is deleted at once, and bots stop moving as soon as no seated human is playing any more.
+- A bot can never break a request or block a game: whatever goes wrong while it decides (damaged weight file,
+  unexpected state) is caught, and it then plays a move that is always legal (challenge, or the lowest bid).
+- The weight file `core/trombone-net.bin` can be downloaded by anyone who knows its address. It contains no
+  secrets, but it is the complete bot.
 - There are no accounts: everyone who can open a table can sit down, and everyone seated can free seats and
   delete the table. **With a table list (`lobby: true`) that is every visitor of the page**, so use
   `lobby: false` (tables only reachable via their 64-bit link) unless the page is hidden or restricted.
@@ -79,7 +105,8 @@ notice and privacy policy via `footer_links`.
 
 ## Development
 
-`php tests/api-test.php` runs the API tests (also on every push), `tests/e2e/` plays every game in Chromium,
+`php tests/api-test.php` runs the API tests and `php tests/bot-test.php` the tests of the Trombone bot (both also
+on every push), `tests/e2e/` plays every game in Chromium,
 `php build.php` builds both packages into `dist/`, and `tools/server-check.php` checks a web space before
 installing. Releases: bump `version` in `blueprints.yaml`, add a `# v<version>` section to `CHANGELOG.md` and push
 a tag with the version number; the GitHub Action publishes the Grav package here and the standalone package in

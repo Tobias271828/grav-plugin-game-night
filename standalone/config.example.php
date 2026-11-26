@@ -22,6 +22,16 @@ return [
     // 'handbrain' (four-player chess), 'connect4' (Four in a Row). Existing tables of other games keep working.
     'games' => [],
 
+    // Trombone: offer bots ("TromboneZero")? They are computed on this server (inside the requests of the people
+    // at the table) and need the weight file core/trombone-net.bin; without it there are no bots.
+    'bots'     => true,
+    'max_bots' => 7,                  // at most this many bots per table (0 = none)
+    // Bots cost computing time on this server, so they have limits of their own (0 = unlimited):
+    'max_bots_per_client'  => 21,     // bots seated at the same time that one IP address has added
+    'max_bots_total'       => 70,     // bots seated at the same time in this instance
+    'bot_moves_per_minute' => 600,    // bot moves per minute in this instance (a quarter of that per IP address);
+                                      // when used up, bots simply move later
+
     // Behind a reverse proxy (Cloudflare, nginx, …) all requests come from the proxy's address, so all
     // visitors would share the limits. Name the header in which YOUR proxy passes the visitor's address,
     // e.g. 'CF-Connecting-IP' (Cloudflare) or 'X-Forwarded-For' (the last entry is used – the one your proxy

@@ -69,6 +69,14 @@ function h(tag, attrs, ...children) {
     return el;
 }
 
+/**
+ * Abzeichen für Bots (Trombone: „TromboneZero“, kurz T0). Gezeigt wird es nur anhand des Kennzeichens „bot“,
+ * das allein der Server setzt – nie anhand des Namens, den sich jede Person frei aussuchen kann.
+ */
+function botBadge() {
+    return h('span', { class: 'bot-badge', title: 'TromboneZero (T0)' }, 'Bot');
+}
+
 function toast(msg, ms = 3500) {
     const el = document.getElementById('toast');
     el.textContent = msg;

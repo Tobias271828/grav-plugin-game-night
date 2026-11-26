@@ -83,6 +83,13 @@
     const rankOf = c => (c === 'X' ? 99 : parseInt(c, 10));
     const sortHand = hand => [...hand].sort((x, y) => rankOf(x) - rankOf(y) || x.localeCompare(y));
 
+    // Bot-Abzeichen im Fließtext: Das Abzeichen hängt allein am Kennzeichen „bot“, das der Server setzt – nie am
+    // Namen (den wählt jede Person frei). tag(…) hängt bei Bots den Platzhalter BOT_MARK an den Namen, rich(…)
+    // macht aus einem Text mit Platzhaltern Text und Abzeichen. Aus den Namen selbst wird der Platzhalter entfernt.
+    const BOT_MARK = '\uE000';
+    const plain = name => String(name).split(BOT_MARK).join('');
+    const rich = text => String(text).split(BOT_MARK).flatMap((part, i) => (i ? [botBadge(), part] : [part]));
+
     // lokaler Zustand des Gebots-Baukastens; wird bei jedem neuen Gebot zurückgesetzt
     let comp = { key: '', cat: null, a: null, b: null, busy: false };
     let addPanel = { open: false, seat: null, cards: null };   // „Person aufnehmen“
@@ -114,7 +121,10 @@
             High card &lt; Pair &lt; Two pair &lt; Three of a kind &lt; Full house &lt; Four of a kind &lt; Five of a kind &lt; Six of a kind<br>
             2 &lt; 3 &lt; … &lt; 10 &lt; Jack &lt; Queen &lt; King &lt; Ace.<br>
             Full house and two pair are compared by the three of a kind (or the higher pair) first, then by the other pair:
-            “three 8s and two 2s” beats “three 7s and two aces”.</p>`
+            “three 8s and two 2s” beats “three 7s and two aces”.</p>
+            <p><b>Bots:</b> if this site offers them, bots (“TromboneZero”, T0 for short) can be added before the start or, if all human players agree, during a game. You recognise them
+            by the “Bot” badge, which only the server assigns – never by their name. They see only their own cards and are computed
+            on this server while a player has the table open; no data leaves the server. Bots bid and challenge, but never vote.</p>`
             : `
             <p><b>Karten:</b> Bei 2 Personen 32 Blatt (7 bis Ass) + 1 Joker, ab 4 Personen 52 Blatt + 2 Joker, bei 3 Personen wird vor dem Start gewählt.
             Joker sind beliebig und zählen als jeder Rang. Ein Sechsling kann nur mit 52 Blatt + 2 Jokern geboten werden.</p>
@@ -128,7 +138,10 @@
             Hohe Karte &lt; Paar &lt; Doppelpaar &lt; Drilling &lt; Full House &lt; Vierling &lt; Fünfling &lt; Sechsling<br>
             2 &lt; 3 &lt; … &lt; 10 &lt; Bube &lt; Dame &lt; König &lt; Ass.<br>
             Beim Full House (bzw. Doppelpaar) zählt zuerst der Drilling (bzw. das höhere Paar), dann das andere Paar:
-            „3 8er und 2 2er“ schlägt „3 7er und 2 Asse“.</p>`,
+            „3 8er und 2 2er“ schlägt „3 7er und 2 Asse“.</p>
+            <p><b>Bots:</b> Wenn diese Seite sie anbietet, können Bots („TromboneZero“, kurz T0) dazugesetzt werden – vor dem Start oder, wenn alle mitspielenden Menschen zustimmen, im laufenden Spiel. Man erkennt sie
+            am Abzeichen „Bot“, das nur der Server vergibt – nie am Namen. Sie sehen nur ihre eigenen Karten und werden auf diesem Server
+            berechnet, solange jemand den Tisch geöffnet hat; dabei verlassen keine Daten den Server. Bots bieten und zweifeln an, stimmen aber nie ab.</p>`,
 
         // Am Zug ist nur, wer mit diesem Browser wirklich mitspielt (state.meSeat kommt vom Server)
         isMyTurn(state) {
@@ -158,7 +171,10 @@
         render(root, ctx) {
             const { state, room, mySeat } = ctx;
             const players = state.players || [];
-            const nameOf = seat => (players.find(p => p.seat === seat) || {}).name || (room.seats[seat] && room.seats[seat].name) || '?';
+            const nameOf = seat => plain((players.find(p => p.seat === seat) || {}).name || (room.seats[seat] && room.seats[seat].name) || '?');
+            // Name mit Platzhalter für das Bot-Abzeichen (für rich(…)); das Kennzeichen kommt vom Server
+            const isBot = seat => !!(players.find(p => p.seat === seat) || room.seats[seat] || {}).bot;
+            const tag = seat => nameOf(seat) + (isBot(seat) ? BOT_MARK : '');
             // Spiele ich mit? Das entscheidet der Server (Platz UND Browser-Token), nicht nur der Platz.
             const meSeat = state.meSeat ?? null;
             const meP = players.find(p => p.seat === meSeat && !p.out);   // dabei (auch wenn erst ab nächster Runde)
@@ -171,7 +187,7 @@
                 comp.busy = false;
             };
 
-            if (state.phase === 'lobby') return fill(root, renderLobby(ctx, nameOf, doAction));
+            if (state.phase === 'lobby') return fill(root, renderLobby(ctx, doAction));
 
             const last = state.bids && state.bids.length ? state.bids[state.bids.length - 1] : null;
             const turnSeat = state.turn && state.turn[0];
@@ -182,12 +198,12 @@
             let status;
             if (state.phase === 'bidding') {
                 status = myTurn ? h('div', { class: 'tb-status mine' }, t('Du bist dran!', 'Your turn!'))
-                    : h('div', { class: 'tb-status' }, t(`${nameOf(turnSeat)} ist dran …`, `${nameOf(turnSeat)} to play …`));
+                    : h('div', { class: 'tb-status' }, rich(t(`${tag(turnSeat)} ist dran …`, `${tag(turnSeat)} to play …`)));
             } else if (state.phase === 'reveal') {
                 status = h('div', { class: 'tb-status' }, t(`Runde ${state.round} ist vorbei`, `Round ${state.round} is over`));
             } else {
                 status = state.loser !== null && state.loser !== undefined
-                    ? h('div', { class: 'tb-status over' }, t(`${nameOf(state.loser)} verliert das Spiel!`, `${nameOf(state.loser)} loses the game!`))
+                    ? h('div', { class: 'tb-status over' }, rich(t(`${tag(state.loser)} verliert das Spiel!`, `${tag(state.loser)} loses the game!`)))
                     : h('div', { class: 'tb-status over' }, t('Spiel beendet', 'Game over'));
             }
 
@@ -206,7 +222,7 @@
                 current = h('div', { class: 'tb-current' },
                     h('div', { class: 'tb-curline' },
                         h('span', { class: 'tb-label' }, t('Aktuelle Ansage', 'Current bid')),
-                        last ? [h('span', { class: 'tb-bid' }, cap(bidPhrase(last.bid))), h('span', { class: 'small muted' }, t('von ', 'by ') + nameOf(last.seat))]
+                        last ? [h('span', { class: 'tb-bid' }, cap(bidPhrase(last.bid))), h('span', { class: 'small muted' }, rich(t('von ', 'by ') + tag(last.seat)))]
                              : h('span', { class: 'tb-bid muted' }, t('noch keine', 'none yet'))),
                     myCards);
                 if (!myCards) {
@@ -230,12 +246,12 @@
             }
 
             // --- Auflösung
-            const reveal = state.reveal ? renderReveal(state, state.reveal, nameOf, meSeat) : null;
+            const reveal = state.reveal ? renderReveal(state, state.reveal, tag, meSeat) : null;
             // Wer die Auflösung verpasst hat (jemand war mit „Nächste Runde“ schneller), kann sie hier nachsehen
             const lastReveal = state.phase === 'bidding' && state.lastReveal
                 ? h('details', { class: 'tb-history tb-last', ...keepOpen('last') },
                     h('summary', {}, t('Auflösung der vorigen Runde', 'Previous round’s reveal')),
-                    renderReveal(state, state.lastReveal, nameOf, meSeat))
+                    renderReveal(state, state.lastReveal, tag, meSeat))
                 : null;
             let next = null;
             if (state.phase === 'reveal' && meP) {
@@ -250,7 +266,7 @@
                 const lastBid = pBids.length ? pBids[pBids.length - 1].bid : null;
                 const active = !p.out && state.phase === 'bidding' && p.seat === turnSeat;
                 return h('div', { class: 'tb-player' + (active ? ' active' : '') + (p.out ? ' out' : '') + (p.joining ? ' joining' : '') + (p.seat === meSeat ? ' me' : '') },
-                    h('span', { class: 'tb-pname' }, nameOf(p.seat), p.seat === meSeat ? t(' (du)', ' (you)') : ''),
+                    h('span', { class: 'tb-pname' }, nameOf(p.seat), p.bot ? botBadge() : null, p.seat === meSeat ? t(' (du)', ' (you)') : ''),
                     h('span', { class: 'tb-backs', title: t(`${p.cards} Karten`, `${p.cards} cards`) },
                         Array.from({ length: p.cards }, () => h('span', { class: 'tb-back' })),
                         h('span', { class: 'small muted' }, ` ${p.cards}/${MAX_CARDS}`)),
@@ -271,12 +287,12 @@
             }));
 
             // --- Gebote dieser Runde (und, ausgegraut, die vor dem Entfernen einer Person)
-            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, nameOf(b.seat) + ': '), cap(bidPhrase(b.bid)))));
+            const bidList = bids => h('ol', {}, bids.map(b => h('li', {}, h('b', {}, rich(tag(b.seat) + ': ')), cap(bidPhrase(b.bid)))));
             const history = state.phase === 'bidding' && (state.bids.length || (state.prevBids || []).length)
                 ? [
                     // nicht doppelt: diese Ansagen stehen nicht in der Liste der Mitspielenden → aufgeklappt
                     ...(state.prevBids || []).map((pb, i) => h('details', { class: 'tb-history old', ...keepOpen('prev' + i, true) },
-                        h('summary', {}, t(`Ansagen vor dem Entfernen von ${nameOf(pb.removed)}`, `Bids before ${nameOf(pb.removed)} was removed`)),
+                        h('summary', {}, rich(t(`Ansagen vor dem Entfernen von ${tag(pb.removed)}`, `Bids before ${tag(pb.removed)} was removed`))),
                         bidList(pb.bids))),
                     // die jeweils letzte Ansage steht schon bei den Mitspielenden → zugeklappt
                     state.bids.length ? h('details', { class: 'tb-history', ...keepOpen('bids') }, h('summary', {}, t('Ansagen dieser Runde', 'Bids this round')),
@@ -287,9 +303,9 @@
             const rounds = state.history && state.history.length
                 ? h('details', { class: 'tb-history', ...keepOpen('rounds') }, h('summary', {}, t('Bisherige Runden', 'Previous rounds')),
                     h('ul', {}, state.history.map(r => h('li', {},
-                        `${t('Runde', 'Round')} ${r.round}: ${nameOf(r.challenger)} → ${nameOf(r.challenged)} (${bidPhrase(r.bid)}) – `,
+                        rich(`${t('Runde', 'Round')} ${r.round}: ${tag(r.challenger)} → ${tag(r.challenged)} (${bidPhrase(r.bid)}) – `),
                         r.true ? t('stimmte', 'was true') : t('geblufft', 'was a bluff'),
-                        `, ${nameOf(r.loser)} ${t('verliert', 'loses')}`))))
+                        rich(`, ${tag(r.loser)} ${t('verliert', 'loses')}`)))))
                 : null;
 
             // --- Spielende
@@ -316,9 +332,9 @@
 
             // Handy: alles untereinander; ab Tablet-Querformat/Computer zwei Spalten
             fill(root, h('div', { class: 'tb tb-game' },
-                h('div', { class: 'tb-main' }, status, renderProposal(state, nameOf, mySeat, meSeat, meActive, doAction), info, current, reveal, next, overBox, hand, actions),
+                h('div', { class: 'tb-main' }, status, renderProposal(state, tag, mySeat, meSeat, meActive, doAction), info, current, reveal, next, overBox, hand, actions),
                 h('div', { class: 'tb-side' }, playerList,
-                    meActive && running && !state.proposal ? renderAddPanel(root, ctx, state, nameOf, doAction) : null,
+                    meActive && running && !state.proposal ? renderAddPanel(root, ctx, state, doAction) : null,
                     history, lastReveal, rounds, extras)));
         },
     });
@@ -331,14 +347,22 @@
             && !(state.players || []).some(p => p.seat === i && !p.out));
     }
 
-    function renderAddPanel(root, ctx, state, nameOf, doAction) {
+    function renderAddPanel(root, ctx, state, doAction) {
         const redraw = () => Games.trombone.render(root, ctx);
+        // Wer jetzt auf dem Platz sitzt (nicht, wer dort früher mitgespielt hat); ein Bot, der aus dem Spiel
+        // genommen wurde und noch am Tisch sitzt, lässt sich wie eine Person wieder aufnehmen
+        const tag = seat => plain(ctx.room.seats[seat].name) + (ctx.room.seats[seat].bot ? BOT_MARK : '');
         if (!addPanel.open) {
             return h('button', { class: 'btn', onclick: () => { addPanel = { open: true, seat: null, cards: null }; redraw(); } },
                 t('+ Person aufnehmen', '+ Add player'));
         }
         const cands = candidates(state, ctx.room);
-        if (addPanel.seat !== null && !cands.includes(addPanel.seat)) addPanel.seat = null;
+        // Neuer Bot (addPanel.seat === 'bot'): wird erst beim Vorschlagen an den Tisch gesetzt
+        const freeSeat = ctx.room.seats.findIndex(s => !s);
+        const newBot = (ctx.room.maxBots || 0) > 0 && freeSeat >= 0
+            && ctx.room.seats.filter(s => s && s.bot).length < ctx.room.maxBots;
+        if (addPanel.seat === 'bot' ? !newBot : addPanel.seat !== null && !cands.includes(addPanel.seat)) addPanel.seat = null;
+        const label = seat => (seat === 'bot' ? t('neuen Bot', 'a new bot') : tag(seat));
         const playing = (state.players || []).filter(p => !p.out).length;
         const full = state.deck === '32' && playing >= 5;
         const ready = addPanel.seat !== null && addPanel.cards !== null;
@@ -348,53 +372,69 @@
                 h('b', {}, t('Person aufnehmen', 'Add player')),
                 h('button', { class: 'link muted', onclick: () => { addPanel.open = false; redraw(); } }, t('schließen', 'close'))),
             full ? h('p', { class: 'small' }, t('Mit 32 Karten können höchstens 5 Personen mitspielen.', 'With 32 cards at most 5 people can play.'))
-            : !cands.length ? h('p', { class: 'small muted' },
+            : !cands.length && !newBot ? h('p', { class: 'small muted' },
                 t('Die Person muss zuerst den Link öffnen und auf „Mitmachen“ tippen. Danach erscheint sie hier.',
                   'The person first has to open the link and tap “Join”. Then they appear here.'))
             : [
                 h('div', { class: 'tb-label' }, t('Wer?', 'Who?')),
                 h('div', { class: 'tb-chips' }, cands.map(i => h('button', {
                     class: 'tb-chip' + (addPanel.seat === i ? ' on' : ''), onclick: () => { addPanel.seat = i; redraw(); },
-                }, nameOf(i)))),
+                }, rich(tag(i)))), newBot ? h('button', {
+                    class: 'tb-chip tb-newbot' + (addPanel.seat === 'bot' ? ' on' : ''), onclick: () => { addPanel.seat = 'bot'; redraw(); },
+                }, t('+ neuer Bot', '+ new bot')) : null),
+                !cands.length ? h('p', { class: 'small muted', style: { margin: '0 0 .5rem' } },
+                    t('Eine Person muss zuerst den Link öffnen und auf „Mitmachen“ tippen. Danach erscheint sie hier.',
+                      'A person first has to open the link and tap “Join”. Then they appear here.')) : null,
                 h('div', { class: 'tb-label' }, t('Mit wie vielen Karten?', 'With how many cards?')),
                 h('div', { class: 'tb-ranks' }, [1, 2, 3, 4, 5, 6].map(k => h('button', {
                     class: 'tb-rankbtn' + (addPanel.cards === k ? ' on' : ''), onclick: () => { addPanel.cards = k; redraw(); },
                 }, k))),
                 h('button', {
                     class: 'btn primary tb-big', disabled: !ready, style: { marginTop: '.6rem' },
-                    onclick: async () => { const d = { seat: addPanel.seat, cards: addPanel.cards }; addPanel.open = false; await doAction('propose', d); },
-                }, ready ? t(`${nameOf(addPanel.seat)} mit ${addPanel.cards} vorschlagen`, `Propose ${nameOf(addPanel.seat)} with ${addPanel.cards}`)
+                    onclick: async () => {
+                        const d = { seat: addPanel.seat, cards: addPanel.cards };
+                        addPanel.open = false;
+                        if (d.seat === 'bot') {
+                            // erst an den Tisch setzen, dann vorschlagen; lehnt jemand ab, nimmt der Server ihn wieder weg
+                            d.seat = freeSeat;
+                            if (!(await ctx.bot('add', freeSeat))) return;
+                        }
+                        await doAction('propose', d);
+                    },
+                }, ready ? rich(t(`${label(addPanel.seat)} mit ${addPanel.cards} vorschlagen`, `Propose ${label(addPanel.seat)} with ${addPanel.cards}`))
                          : t('Person und Kartenzahl wählen', 'Choose person and number of cards')),
                 h('p', { class: 'small muted', style: { margin: '.4rem 0 0' } },
-                    t('Alle aktiven Mitspielenden müssen zustimmen.', 'All active players have to agree.')),
+                    t('Alle aktiven Mitspielenden müssen zustimmen (Bots stimmen nicht ab).', 'All active players have to agree (bots do not vote).')),
             ]);
     }
 
     function renderProposal(state, nameOf, mySeat, meSeat, meActive, doAction) {
         const prop = state.proposal;
         const res = state.proposalResult;
+        // nameOf liefert Namen mit Platzhalter fürs Bot-Abzeichen; ebenso die vorgeschlagene Person (Kennzeichen vom Server)
+        const who = x => plain(x.name) + (x.bot ? BOT_MARK : '');
         if (!prop) {
             if (!res || res.round !== state.round) return null;
             return res.accepted
-                ? h('p', { class: 'notice small' }, t(`${res.name} wurde aufgenommen.`, `${res.name} has been added.`))
-                : h('p', { class: 'notice small' }, res.withdrawn
-                    ? t(`${nameOf(res.by)} hat den Vorschlag, ${res.name} aufzunehmen, zurückgezogen.`, `${nameOf(res.by)} withdrew the proposal to add ${res.name}.`)
+                ? h('p', { class: 'notice small' }, rich(t(`${who(res)} wurde aufgenommen.`, `${who(res)} has been added.`)))
+                : h('p', { class: 'notice small' }, rich(res.withdrawn
+                    ? t(`${nameOf(res.by)} hat den Vorschlag, ${who(res)} aufzunehmen, zurückgezogen.`, `${nameOf(res.by)} withdrew the proposal to add ${who(res)}.`)
                     : res.by !== null && res.by !== undefined
-                    ? t(`${nameOf(res.by)} hat die Aufnahme von ${res.name} abgelehnt.`, `${nameOf(res.by)} declined adding ${res.name}.`)
-                    : t(`${res.name} wurde nicht aufgenommen.`, `${res.name} was not added.`));
+                    ? t(`${nameOf(res.by)} hat die Aufnahme von ${who(res)} abgelehnt.`, `${nameOf(res.by)} declined adding ${who(res)}.`)
+                    : t(`${who(res)} wurde nicht aufgenommen.`, `${who(res)} was not added.`)));
         }
-        const voters = (state.players || []).filter(p => !p.out && !p.joining);
+        const voters = (state.players || []).filter(p => !p.out && !p.joining && !p.bot);   // Bots stimmen nicht ab
         const missing = voters.filter(p => !prop.yes.includes(p.seat));
         const iVoted = prop.yes.includes(meSeat);
         const cards = prop.cards === 1 ? t('1 Karte', '1 card') : t(`${prop.cards} Karten`, `${prop.cards} cards`);
 
         return h('div', { class: 'tb-proposal' },
-            h('div', {}, mySeat === prop.seat
+            h('div', {}, rich(mySeat === prop.seat
                 ? t(`${nameOf(prop.by)} möchte dich mit ${cards} aufnehmen.`, `${nameOf(prop.by)} wants to add you with ${cards}.`)
-                : t(`${nameOf(prop.by)} möchte ${prop.name} mit ${cards} aufnehmen.`, `${nameOf(prop.by)} wants to add ${prop.name} with ${cards}.`)),
+                : t(`${nameOf(prop.by)} möchte ${who(prop)} mit ${cards} aufnehmen.`, `${nameOf(prop.by)} wants to add ${who(prop)} with ${cards}.`))),
             h('div', { class: 'small muted' },
                 t(`Zustimmung: ${prop.yes.length} von ${voters.length}`, `Agreed: ${prop.yes.length} of ${voters.length}`),
-                missing.length ? t(' · es fehlt: ', ' · waiting for: ') + missing.map(p => nameOf(p.seat)).join(', ') : ''),
+                missing.length ? t(' · es fehlt: ', ' · waiting for: ') + missing.map(p => plain(nameOf(p.seat))).join(', ') : ''),
             meActive ? h('div', { class: 'tb-vote' },
                 !iVoted ? h('button', { class: 'btn primary', onclick: () => doAction('vote', { yes: true }) }, t('Zustimmen', 'Agree')) : null,
                 h('button', { class: 'btn', onclick: () => doAction('vote', { yes: false }) },
@@ -404,10 +444,23 @@
 
     // ------------------------------------------------------------------ Lobby
 
-    function renderLobby(ctx, nameOf, doAction) {
+    function renderLobby(ctx, doAction) {
         const { room, mySeat, state } = ctx;
+        const nameOf = i => plain(room.seats[i].name);
         const seated = room.seats.map((s, i) => (s ? i : null)).filter(i => i !== null);
         const n = seated.length;
+        // Bots (nur, wenn die Instanz sie anbietet: room.maxBots > 0). Mitzählen wie Personen; starten kann nur ein Mensch.
+        const bots = seated.filter(i => room.seats[i].bot).length;
+        const maxBots = room.maxBots || 0;
+        const freeSeat = room.seats.findIndex(s => !s);
+        const botAction = async (op, seat) => {
+            if (comp.busy) return;
+            comp.busy = true;
+            await ctx.bot(op, seat);
+            comp.busy = false;
+        };
+        const count = (k, de1, de, en1, en) => `${k} ${k === 1 ? t(de1, en1) : t(de, en)}`;
+        const startWith = `${count(n - bots, 'Person', 'Personen', 'player', 'players')} + ${count(bots, 'Bot', 'Bots', 'bot', 'bots')}`;
         // 2 Personen: 32 + 1 Joker, ab 4: 52 + 2 Joker, bei 3 Personen entscheidet die Runde
         const fixedDeck = n === 3 ? null : n <= 2 ? '32' : '52';
         const deckName = d => (d === '32' ? t('32 Karten + 1 Joker', '32 cards + 1 joker') : t('52 Karten + 2 Joker', '52 cards + 2 jokers'));
@@ -423,17 +476,25 @@
             h('div', { class: 'tb-status' }, t('Wer spielt mit?', 'Who is playing?')),
             h('div', { class: 'tb-players' },
                 n ? seated.map(i => h('div', { class: 'tb-player' + (i === mySeat ? ' me' : '') },
-                    h('span', { class: 'tb-pname' }, nameOf(i), i === mySeat ? t(' (du)', ' (you)') : ''),
-                    i !== mySeat && mySeat !== null ? h('button', {
+                    h('span', { class: 'tb-pname' }, nameOf(i), room.seats[i].bot ? botBadge() : null, i === mySeat ? t(' (du)', ' (you)') : ''),
+                    i === mySeat || mySeat === null ? null : room.seats[i].bot ? h('button', {
+                        class: 'link muted tb-remove', title: t('Bot entfernen', 'Remove bot'), 'aria-label': t('Bot entfernen', 'Remove bot'),
+                        onclick: () => botAction('remove', i),
+                    }, '×') : h('button', {
                         class: 'link muted tb-remove', title: t('Platz freigeben', 'Free seat'),
                         onclick: () => { if (confirm(t(`${nameOf(i)} entfernen?`, `Remove ${nameOf(i)}?`))) ctx.kick(i); },
-                    }, '×') : null))
+                    }, '×')))
                   : h('p', { class: 'muted' }, t('Noch niemand.', 'Nobody yet.'))),
             mySeat === null
                 ? (room.seats.some(s => !s)
                     ? h('button', { class: 'btn primary tb-big', onclick: () => ctx.sit(room.seats.findIndex(s => !s)) }, t('Mitspielen', 'Join'))
                     : h('p', { class: 'muted' }, t('Der Tisch ist voll.', 'The table is full.')))
                 : h('button', { class: 'link', onclick: () => ctx.stand() }, t('doch nicht mitspielen', 'leave')),
+            mySeat !== null && maxBots > 0 ? h('button', {
+                class: 'btn tb-addbot', disabled: bots >= maxBots || freeSeat < 0,
+                title: t('Einen Bot (TromboneZero, kurz T0) an den Tisch setzen', 'Add a bot (TromboneZero, T0 for short) to the table'),
+                onclick: () => botAction('add', freeSeat),
+            }, t('+ Bot hinzufügen', '+ Add bot')) : null,
             h('div', { class: 'tb-deck' },
                 h('div', { class: 'tb-label' }, t('Kartenspiel', 'Deck')),
                 fixedDeck
@@ -447,6 +508,7 @@
                 onclick: () => doAction('start', { players: n }),
             }, n < 2 ? t('Warte auf mindestens 2 Personen …', 'Waiting for at least 2 players …')
                 : n === 3 && !deckChoice ? t('Erst Kartenspiel wählen', 'Choose a deck first')
+                : bots ? t(`Spiel starten (${startWith})`, `Start game (${startWith})`)
                 : t(`Spiel starten (${n} Personen)`, `Start game (${n} players)`)) : null,
         );
     }
@@ -512,6 +574,7 @@
         return [...order, ...Object.keys(hands).filter(seat => !order.includes(seat))].map(seat => [seat, hands[seat]]);
     }
 
+    /** nameOf liefert die Namen mit Platzhalter fürs Bot-Abzeichen (siehe rich) */
     function renderReveal(state, r, nameOf, meSeat) {
         const bid = r.bid;
         const hitRanks = [bid.a, NEED[bid.t][1] ? bid.b : null];
@@ -523,12 +586,12 @@
                 `${nameOf(r.loser)} loses the round and gets one more card from now on. ${nameOf(r.winner)} starts the next round.`);
 
         return h('div', { class: 'tb-reveal ' + (r.true ? 'true' : 'false') },
-            h('div', {}, t(`${nameOf(r.challenger)} zweifelt an:`, `${nameOf(r.challenger)} challenges:`)),
-            h('div', { class: 'tb-bid' }, cap(bidPhrase(bid)), h('span', { class: 'small muted' }, t(' von ', ' by ') + nameOf(r.challenged))),
+            h('div', {}, rich(t(`${nameOf(r.challenger)} zweifelt an:`, `${nameOf(r.challenger)} challenges:`))),
+            h('div', { class: 'tb-bid' }, cap(bidPhrase(bid)), h('span', { class: 'small muted' }, rich(t(' von ', ' by ') + nameOf(r.challenged)))),
             h('div', { class: 'tb-verdict' }, r.true ? t('Die Ansage stimmt!', 'The bid is true!') : t('Geblufft – die Ansage stimmt nicht!', 'Bluff – the bid is false!')),
-            h('div', { class: 'tb-loser' }, loserMore),
+            h('div', { class: 'tb-loser' }, rich(loserMore)),
             h('div', { class: 'tb-allhands' }, handsInOrder(state, r.hands).map(([seat, hand]) => h('div', { class: 'tb-onehand' + (+seat === meSeat ? ' me' : '') },
-                h('span', { class: 'tb-pname small' }, nameOf(+seat)),
+                h('span', { class: 'tb-pname small' }, rich(nameOf(+seat))),
                 h('span', { class: 'tb-cards' }, sortHand(hand).map(c => cardEl(c, { small: true, hit: isHit(c) })))))),
         );
     }

@@ -50,8 +50,8 @@ const DEFAULTS = [
     'proxy_ip_header'      => '',      // hinter einem Proxy: Kopfzeile mit der Besucheradresse, z. B. 'CF-Connecting-IP'
     'bots'                 => true,    // Trombone: Bots anbieten (nur mit passender Gewichtsdatei, siehe TromboneBot.php)
     'max_bots'             => 7,       // Trombone: höchstens so viele Bots pro Tisch (0 = keine)
-    'max_bots_per_client'  => 14,      // Trombone: gleichzeitig sitzende Bots, die eine IP hingesetzt hat; 0 = unbegrenzt
-    'max_bots_total'       => 40,      // Trombone: gleichzeitig sitzende Bots in der ganzen Instanz; 0 = unbegrenzt
+    'max_bots_per_client'  => 21,      // Trombone: gleichzeitig sitzende Bots, die eine IP hingesetzt hat; 0 = unbegrenzt
+    'max_bots_total'       => 70,      // Trombone: gleichzeitig sitzende Bots in der ganzen Instanz; 0 = unbegrenzt
     'bot_moves_per_minute' => 600,     // Trombone: Bot-Züge pro Minute in der ganzen Instanz (pro IP ein Viertel); 0 = unbegrenzt
 ];
 
@@ -94,7 +94,7 @@ function instance_config(array $raw, string $dataDir, string $stateDir): array
         // Nicht einstellbar (nur die Tests setzen hier andere Werte ein): Gewichtsdatei des Trombone-Bots
         // und seine Denkpause in Millisekunden [von, bis]
         'net_file'            => __DIR__ . '/trombone-net.bin',
-        'bot_delay'           => [2000, 6000],
+        'bot_delay'           => [2000, 4000],
     ];
 }
 
@@ -909,7 +909,7 @@ function run(array $config): void
 
         case 'bot':
             // Trombone: einen Bot auf einen freien Platz setzen ('add') oder wieder wegnehmen ('remove') – nur
-            // vor dem Start und nur durch Menschen am Tisch. Allein hier entsteht das Kennzeichen 'bot' eines
+            // durch Menschen am Tisch. Allein hier entsteht das Kennzeichen 'bot' eines
             // Platzes; sein Token hat nicht die Form der Browser-Tokens, kein Client kann es also je vorlegen.
             $op = param($in, 'op');
             $target = int_param($in, 'seat', -1);
@@ -922,11 +922,14 @@ function run(array $config): void
                 if (seat_of($room, $token) === null) {
                     fail('Du sitzt nicht an diesem Tisch', 403);
                 }
-                if (!in_array($room['state']['phase'], ['lobby', 'over'], true)) {
-                    fail('Das Spiel läuft schon', 409);
-                }
                 if (!array_key_exists($target, $room['seats'])) {
                     fail('Ungültiger Platz');
+                }
+                // Im laufenden Spiel setzt 'add' den Bot nur an den Tisch: Mitspielen kann er erst nach einer
+                // Abstimmung der Menschen (Spielaktion 'propose', wie bei einer Person). Ein Bot, der gerade
+                // mitspielt, lässt sich hier nicht wegnehmen (dafür: 'kick').
+                if ($op === 'remove' && tbot_playing($room, $target)) {
+                    fail('Das Spiel läuft schon', 409);
                 }
                 if ($op === 'remove') {
                     if (empty($room['seats'][$target]['bot'])) {
