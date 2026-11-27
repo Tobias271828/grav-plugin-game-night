@@ -25,6 +25,7 @@ Gewichtsdatei `core/trombone-net.bin`. Dieser Ordner gehört nicht in die Releas
 cd training
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+python gen_refs.py               # erzeugt ../tests/ref/ (liegt nicht im Repository; die Tests brauchen es)
 python -m tests.test_core        # etwa 2 Minuten; der Teil „php“ braucht php im Pfad
 ```
 

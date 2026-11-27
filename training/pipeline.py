@@ -11,8 +11,8 @@
 
 Im Repository liegt nichts Erzeugtes außer dem fertigen Netz core/trombone-net.bin. Alles andere entsteht hier:
 
-  pruefen   Tests des Trainingscodes; Referenzspiele und Testnetz für die PHP-Tests (tests/ref/, nicht im
-            Repository) neu erzeugen; PHP gegen Python abgleichen
+  pruefen   Referenzspiele und Testnetz für die Tests (tests/ref/, nicht im Repository) neu erzeugen; Tests
+            des Trainingscodes; PHP gegen Python abgleichen
   probe     kurzer Lauf: misst die Geschwindigkeit des Rechners und schätzt die Dauer der übrigen Stufen
   suche     Kandidaten mit zufälligen Einstellungen trainieren und in drei Stufen auslesen (tune.py)
   training  der lange Lauf mit der besten Einstellung (train.py); legt laufend Zwischenstände ab
@@ -102,8 +102,8 @@ class Pipeline:
     # ---------------------------------------------------------------- Stufen
 
     def pruefen(self):
+        self.py("gen_refs.py")                  # zuerst: tests.test_core und bot-test.php brauchen tests/ref/
         self.py("-m", "tests.test_core")
-        self.py("gen_refs.py")
         if self.php:
             self.run([*self.php, os.path.join(ROOT, "tests", "bot-test.php")], cwd=ROOT)
         else:

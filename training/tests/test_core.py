@@ -163,7 +163,9 @@ def test_sim(steps=400, B=48):
 
 
 def test_ref():
-    """Die eingecheckten Referenzspiele (tests/ref/) passen zur Python-Referenz."""
+    """Die Referenzspiele (tests/ref/, erzeugt von gen_refs.py) passen zur Python-Referenz."""
+    if not os.path.exists(os.path.join(ROOT, "tests", "ref", "test-net.bin")):
+        raise SystemExit("tests/ref/ fehlt. Zuerst erzeugen:  python gen_refs.py")
     net = read_net(os.path.join(ROOT, "tests", "ref", "test-net.bin"))
     turns = 0
     for rec in load(os.path.join(ROOT, "tests", "ref", "trombone-ref.jsonl")):
