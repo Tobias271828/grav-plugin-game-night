@@ -891,10 +891,16 @@ defineSuite('trombone-bot', async (browser, players) => {
         const list = await rows(p);
         const bots = list.filter(r => r.badge), humans = list.filter(r => !r.badge);
         await check(bots.length === 2 && humans.map(r => r.name).sort().join() === 'Anna,Bot', `${p.name} sees the badge at the two bots only (${JSON.stringify(list)})`, [p]);
-        await check(bots.every(r => r.title === 'TromboneZero (T0)'), 'badge tooltip names the model', [p]);
+        await check(bots.every(r => (r.title || '').startsWith('TromboneZero (T0): ein Bot.')), 'badge tooltip explains the model', [p]);
         await check(bots.length === 2 && bots[0].name !== bots[1].name && bots.every(r => [...r.name].length === 1 && !/[A-Za-z0-9]/.test(r.name)), `bots are named with different emojis (${bots.map(r => r.name)})`, [p]);
     }
     await A.checkNoHScroll('trombone lobby with bots (mobile)');
+
+    step('tapping a badge shows the explanation');
+    await A.click('.tb-players .bot-badge');
+    await A.waitFor(() => { const el = document.getElementById('toast'); return !el.hidden && el.textContent.startsWith('TromboneZero (T0): ein Bot.'); });
+    await A.click('#toast');
+    await A.waitFor(() => document.getElementById('toast').hidden);
 
     step('remove a bot and add one again (by the other player)');
     await A.click('.tb-players .tb-remove[title="Bot entfernen"]');

@@ -74,13 +74,21 @@ function h(tag, attrs, ...children) {
  * das allein der Server setzt – nie anhand des Namens, den sich jede Person frei aussuchen kann.
  */
 function botBadge() {
-    return h('span', { class: 'bot-badge', title: 'TromboneZero (T0)' }, 'Bot');
+    // Kurze Erklärung: als Tooltip beim Überfahren und – auch auf Touch-Geräten – als Hinweis beim Antippen
+    // (nicht, wenn das Abzeichen in einem Knopf oder Link steckt: dort gilt der Klick diesem)
+    const info = t('TromboneZero (T0): ein Bot. Er spielt mit einem kleinen neuronalen Netz, das nur durch Spiele gegen sich selbst gelernt hat, sieht nur seine eigenen Karten und wird auf dem Server berechnet.',
+                   'TromboneZero (T0): a bot. It plays with a small neural network that learned only by playing against itself, sees only its own cards and is computed on the server.');
+    return h('span', {
+        class: 'bot-badge', title: info, role: 'note', 'aria-label': 'Bot – ' + info,
+        onclick: e => { if (!e.target.closest('button, a')) toast(info, 6000); },
+    }, 'Bot');
 }
 
 function toast(msg, ms = 3500) {
     const el = document.getElementById('toast');
     el.textContent = msg;
     el.hidden = false;
+    el.onclick = () => { el.hidden = true; };   // Antippen schließt den Hinweis (er kann auf dem Handy Knöpfe verdecken)
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { el.hidden = true; }, ms);
 }
