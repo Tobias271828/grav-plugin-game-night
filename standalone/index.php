@@ -43,4 +43,5 @@ GameNight\render_page($config, [
     'asset_dir' => $root . '/assets',
     'title'     => is_string($settings['title'] ?? null) ? $settings['title'] : null,
     'links'     => (array)($settings['footer_links'] ?? []),
+    'favicon'   => $settings['favicon'] ?? null,
 ]);

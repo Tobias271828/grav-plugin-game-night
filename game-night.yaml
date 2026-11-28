@@ -19,6 +19,12 @@ enabled: true
 #     contact_url: ''            # link for feedback shown on the overview page (empty = none)
 #     games: []                  # offered games (empty = all): trombone, zahlenkampf (Rithmomachia),
 #                                # werbinich (Who am I?), handbrain (four-player chess), connect4 (Four in a Row)
+#     bots: true                 # Trombone: offer bots (TromboneZero); needs the weight file core/trombone-net.bin
+#     max_bots: 7                # Trombone: at most this many bots per table (0 = none)
+#     max_bots_per_client: 21    # Trombone: bots seated at the same time that one IP address has added (0 = unlimited)
+#     max_bots_total: 70         # Trombone: bots seated at the same time in this instance (0 = unlimited)
+#     bot_moves_per_minute: 600  # Trombone: bot moves per minute in this instance, a quarter of that per IP address
+#                                # (0 = unlimited); when used up, bots simply move later
 #
 # Behind a reverse proxy (e.g. Cloudflare): on Grav 2 and Grav 1.7.53.11+ the limits use the visitor address that
 # Grav determines – enable the matching header in system.yaml → http_x_forwarded (e.g. cf_connecting_ip: true).

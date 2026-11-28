@@ -1,7 +1,7 @@
 name: Game Night
 slug: game-night
 type: plugin
-version: 1.2.0
+version: 1.3.0
 description: Browser games for game nights with friends (Trombone, Four in a Row, four-player chess, Who am I?, …). Several independent instances per site – private or public. No database, no accounts.
 icon: gamepad
 author:
@@ -111,6 +111,45 @@ form:
           type: number
           label: Existing tables per IP address (0 = unlimited)
           default: 20
+        .bots:
+          type: toggle
+          label: Trombone bots
+          help: 'Offer bots (TromboneZero) at Trombone tables. They are computed on this server; needs the weight file `core/trombone-net.bin`.'
+          highlight: 1
+          default: 1
+          options:
+            1: Offered
+            0: 'Off'
+          validate:
+            type: bool
+        .max_bots:
+          type: number
+          label: Trombone bots per table (0 = none)
+          default: 7
+          validate:
+            min: 0
+            max: 7
+        .max_bots_per_client:
+          type: number
+          label: Trombone bots per IP address (0 = unlimited)
+          help: 'Bots seated at the same time that one IP address has added, across all tables.'
+          default: 21
+          validate:
+            min: 0
+        .max_bots_total:
+          type: number
+          label: Trombone bots in this instance (0 = unlimited)
+          help: 'Bots seated at the same time at all tables of this instance.'
+          default: 70
+          validate:
+            min: 0
+        .bot_moves_per_minute:
+          type: number
+          label: Trombone bot moves per minute (0 = unlimited)
+          help: 'Limits the computing time bots may use: moves per minute in this instance, a quarter of that per IP address. When used up, bots simply move later.'
+          default: 600
+          validate:
+            min: 0
         .proxy_ip_header:
           type: text
           label: Proxy header with the visitor address (optional)

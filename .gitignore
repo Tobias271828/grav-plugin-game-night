@@ -3,3 +3,5 @@ standalone/config.php
 standalone/data/*
 !standalone/data/.htaccess
 tests/e2e/node_modules/
+# erzeugt von training/gen_refs.py (Referenzspiele und Testnetz für tests/bot-test.php)
+tests/ref/

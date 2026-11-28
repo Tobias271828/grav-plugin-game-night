@@ -87,17 +87,43 @@ async function shootAll(players, label) {
 let server = null;
 let tmpDir = null;
 
+/**
+ * Gewichtsdatei für den Trombone-Bot mit Zufallsgewichten (Format siehe tbot_net_info() in core/TromboneBot.php).
+ * Für die Oberfläche ist gleich, wie gut der Bot spielt – er zieht damit regelgerecht.
+ */
+function writeTestNet(file) {
+    const src = fs.readFileSync(path.join(PLUGIN_DIR, 'core', 'TromboneBot.php'), 'utf8');
+    const num = name => Number(src.match(new RegExp(`const ${name}\\s*=\\s*(\\d+)`))[1]);
+    const sizes = [num('TBOT_INPUTS'), 128, 128, num('TBOT_ACTIONS')];
+    const meta = Buffer.from('{}');
+    const cred = [5, 0.38, 0.32, 0.35, 0.18, 0.55, 0.45];   // k und die sechs Vorwerte der Glaubwürdigkeit
+    const head = Buffer.alloc(10 + 2 * sizes.length + 4 * cred.length + 4);
+    head.write('TBN1', 0, 'latin1');
+    [num('TBOT_FORMAT_VERSION'), num('TBOT_FEATURE_VERSION'), sizes.length - 1, ...sizes].forEach((v, i) => head.writeUInt16LE(v, 4 + 2 * i));
+    cred.forEach((v, i) => head.writeFloatLE(v, 10 + 2 * sizes.length + 4 * i));
+    head.writeUInt32LE(meta.length, head.length - 4);
+    let floats = 0;
+    for (let l = 0; l + 1 < sizes.length; l++) floats += sizes[l] * sizes[l + 1] + sizes[l + 1];
+    const weights = Buffer.alloc(4 * floats);
+    for (let i = 0; i < floats; i++) weights.writeFloatLE((Math.random() - 0.5) * 0.4, 4 * i);
+    fs.writeFileSync(file, Buffer.concat([head, meta, weights]));
+}
+
 async function startServer() {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gn-e2e-'));
-    const common = { requests_per_minute: 0, creates_per_hour: 0, rooms_per_client: 0 };
+    writeTestNet(`${tmpDir}/trombone-net.bin`);
+    const common = { requests_per_minute: 0, creates_per_hour: 0, rooms_per_client: 0, max_bots_per_client: 0, max_bots_total: 0, bot_moves_per_minute: 0 };
     const config = {
         state_dir: `${tmpDir}/state`,
         instances: {
             // a: alle Spiele (auch das Zahlenkampfspiel, das standardmäßig aus ist); b: Voreinstellung
+            // a bietet Trombone-Bots an (Testnetz, kurze Denkpause – beides setzt nur router.php); b hat keine Gewichtsdatei
             a: { ...common, lobby: true, data_dir: `${tmpDir}/a`, contact_url: 'mailto:test@example.org',
+                 net_file: `${tmpDir}/trombone-net.bin`, bot_delay: [300, 700],
                  games: ['trombone', 'werbinich', 'handbrain', 'connect4', 'zahlenkampf', 'konferenz'],
+                 favicon: 'https://example.org/logo.png',
                  footer_links: { de: { Impressum: 'https://example.org/impressum' }, en: { 'Legal notice': 'https://example.org/legal' } } },
-            b: { ...common, lobby: false, data_dir: `${tmpDir}/b` },
+            b: { ...common, lobby: false, data_dir: `${tmpDir}/b`, net_file: `${tmpDir}/fehlt.bin` },
         },
     };
     fs.writeFileSync(`${tmpDir}/config.json`, JSON.stringify(config));
@@ -830,6 +856,199 @@ defineSuite('trombone', async (browser, players) => {
     await all(players, p => p.waitText('Wer spielt mit?'));
 });
 
+// --- Trombone mit Bots -----------------------------------------------------------
+
+defineSuite('trombone-bot', async (browser, players) => {
+    const A = await Player.create(browser, 'Anna', { mobile: true });
+    const B = await Player.create(browser, 'Bot');   // ein Mensch, der sich „Bot“ nennt: bekommt kein Abzeichen
+    players.push(A, B);
+    const badges = (p, sel) => p.count(`${sel} .bot-badge`);
+    /** Zeilen der Liste der Mitspielenden: Name (ohne Abzeichen und „(du)“) und ob ein Abzeichen dabeisteht. */
+    const rows = p => p.page.evaluate(() => [...document.querySelectorAll('.tb-players .tb-player')].map(r => ({
+        name: r.querySelector('.tb-pname').firstChild.textContent,
+        badge: !!r.querySelector('.bot-badge'),
+        title: (r.querySelector('.bot-badge') || {}).title || null,
+    })));
+
+    await A.goto(`${BASE}/a/`);
+    const url = await A.createTable('Trombone');
+    await A.waitText('Wer spielt mit?');
+
+    step('add two bots; spectators see them but cannot change them');
+    await A.click('.tb .tb-addbot', 'Bot hinzufügen');
+    await A.waitFor(() => document.querySelectorAll('.tb-players .bot-badge').length === 1);
+    await check((await A.text('.tb')).includes('Spiel starten (1 Person + 1 Bot)'), 'start button counts people and bots', [A]);
+    await A.click('.tb .tb-addbot', 'Bot hinzufügen');
+    await A.waitFor(() => document.querySelectorAll('.tb-players .bot-badge').length === 2);
+    await B.goto(url);
+    await B.waitFor(() => document.querySelectorAll('.tb-players .bot-badge').length === 2);
+    await check(!(await B.exists('.tb-addbot')) && !(await B.exists('.tb-players .tb-remove')), 'a spectator has no buttons to add or remove bots', [B]);
+    await B.click('.tb .btn.primary', 'Mitspielen');
+    await B.waitText('(du)');
+    await A.waitFor(() => document.querySelectorAll('.tb-players .tb-player').length === 4);
+
+    step('badge only for the server’s bots, not for the human called “Bot”');
+    for (const p of players) {
+        const list = await rows(p);
+        const bots = list.filter(r => r.badge), humans = list.filter(r => !r.badge);
+        await check(bots.length === 2 && humans.map(r => r.name).sort().join() === 'Anna,Bot', `${p.name} sees the badge at the two bots only (${JSON.stringify(list)})`, [p]);
+        await check(bots.every(r => (r.title || '').startsWith('TromboneZero (T0): ein Bot.')), 'badge tooltip explains the model', [p]);
+        await check(bots.length === 2 && bots[0].name !== bots[1].name && bots.every(r => [...r.name].length === 1 && !/[A-Za-z0-9]/.test(r.name)), `bots are named with different emojis (${bots.map(r => r.name)})`, [p]);
+    }
+    await A.checkNoHScroll('trombone lobby with bots (mobile)');
+
+    step('tapping a badge shows the explanation');
+    await A.click('.tb-players .bot-badge');
+    await A.waitFor(() => { const el = document.getElementById('toast'); return !el.hidden && el.textContent.startsWith('TromboneZero (T0): ein Bot.'); });
+    await A.click('#toast');
+    await A.waitFor(() => document.getElementById('toast').hidden);
+
+    step('remove a bot and add one again (by the other player)');
+    await A.click('.tb-players .tb-remove[title="Bot entfernen"]');
+    await all(players, p => p.waitFor(() => document.querySelectorAll('.tb-players .bot-badge').length === 1));
+    await check(!A.dialogs.some(d => /^confirm/.test(d)), 'removing a bot before the start needs no confirmation', [A]);
+    await B.click('.tb .tb-addbot', 'Bot hinzufügen');
+    await all(players, p => p.waitFor(() => document.querySelectorAll('.tb-players .bot-badge').length === 2));
+    await snap([A, B], 'bot-lobby');
+
+    step('start; play until the round is revealed (bots move by themselves)');
+    await A.click('.tb .btn.primary', 'Spiel starten (2 Personen + 2 Bots)');
+    await all(players, p => p.waitText('Runde 1'));
+    for (const p of players) await check(await badges(p, '.tb-side .tb-players') === 2, `${p.name}: player list of the game shows two badges`, [p]);
+
+    step('propose a new bot during the game; the other human declines');
+    await A.click('.tb .btn', '+ Person aufnehmen');
+    await A.click('.tb-add .tb-newbot');
+    await A.clickFn(() => [...document.querySelectorAll('.tb-add .tb-rankbtn')][0] || null, 'one card');
+    await A.click('.tb-add .btn.primary', 'neuen Bot mit 1 vorschlagen');
+    await B.waitFor(() => !!document.querySelector('.tb-proposal .bot-badge'));
+    await check(await B.page.evaluate(() => current.room.seats.filter(s => s && s.bot).length === 3 && current.room.state.players.length === 4),
+        'the proposed bot sits at the table but does not play yet', [B]);
+    await B.clickFn(() => [...document.querySelectorAll('.tb-proposal .tb-vote .btn')].find(b => !b.classList.contains('primary')) || null, 'decline');
+    await all(players, p => p.waitFor(() => !current.room.state.proposal && current.room.seats.filter(s => s && s.bot).length === 2));
+    await check(!A.dialogs.some(d => /^alert/.test(d)), 'declining a new bot removes it again without an error', [A]);
+
+    /** Bis zur Auflösung spielen: Menschen sagen das Kleinstmögliche an und zweifeln an, sobald ein Bot angesagt hat. */
+    async function playRound() {
+        let sawBotBid = false;
+        const deadline = Date.now() + 90000;
+        for (;;) {
+            if (Date.now() > deadline) throw new Error('round with bots does not end');
+            const st = await A.page.evaluate(() => {
+                const s = current.room.state, last = s.bids[s.bids.length - 1];
+                return { phase: s.phase, n: s.bids.length, lastBot: !!last && !!(s.players.find(p => p.seat === last.seat) || {}).bot };
+            });
+            if (st.phase !== 'bidding') return sawBotBid;
+            const flags = await Promise.all(players.map(p => p.exists('.tb-actions')));
+            const who = players.find((p, i) => flags[i]);
+            if (!who) { await sleep(150); continue; }   // ein Bot ist dran: Er zieht bei einer der nächsten Abfragen
+            const view = await who.page.evaluate(() => {
+                const s = current.room.state, last = s.bids[s.bids.length - 1];
+                return {
+                    n: s.bids.length, lastBot: !!last && !!(s.players.find(p => p.seat === last.seat) || {}).bot,
+                    canBid: [...document.querySelectorAll('.tb-composer .tb-cats .tb-chip')].some(b => !b.disabled),
+                    curBadge: !!document.querySelector('.tb-curline .bot-badge'),
+                    listBadges: document.querySelectorAll('details.tb-history:not(.old):not(.tb-last) ol li b .bot-badge').length,
+                    botBids: s.bids.filter(b => (s.players.find(p => p.seat === b.seat) || {}).bot).length,
+                };
+            });
+            if (view.n && view.lastBot) {
+                sawBotBid = true;
+                await check(view.curBadge, 'current bid of a bot carries the badge', [who]);
+            } else if (view.n) {
+                await check(!view.curBadge, 'current bid of a human has no badge', [who]);
+            }
+            await check(view.listBadges === view.botBids, `bid list marks exactly the bots’ bids (${view.listBadges} badges, ${view.botBids} bot bids)`, [who]);
+            if (view.n && (view.lastBot || !view.canBid)) {
+                await who.click('.tb-trombone');
+            } else {
+                await who.click('.tb-composer .tb-cats .tb-chip');
+                await who.waitFor(() => !!document.querySelector('.tb-composer .tb-chip.on'));
+                const rowCount = await who.count('.tb-composer .tb-rankrow');
+                for (let row = 0; row < rowCount; row++) {
+                    await who.clickFn(r => [...document.querySelectorAll('.tb-composer .tb-rankrow')[r].querySelectorAll('.tb-rankbtn')].find(b => !b.disabled) || null,
+                        `rank button in row ${row}`, {}, row);
+                    await who.waitFor(r => !!document.querySelectorAll('.tb-composer .tb-rankrow')[r].querySelector('.tb-rankbtn.on'), row);
+                }
+                await who.click('.tb-composer .btn.primary', 'Ansagen: ');
+            }
+            await who.waitFor(n => current.room.state.bids.length > n || current.room.state.phase !== 'bidding', view.n);
+        }
+    }
+
+    /** Auflösung: Abzeichen an den Händen der Bots, in den Sätzen darüber und im Verlauf genau bei den Bots. */
+    async function checkReveal() {
+        await all(players, p => p.waitFor(() => current.room.state.phase === 'reveal' && !!document.querySelector('.tb-main .tb-reveal')));
+        for (const p of players) {
+            const v = await p.page.evaluate(() => {
+                const s = current.room.state, r = s.reveal;
+                const bot = seat => ((s.players.find(q => q.seat === seat) || {}).bot ? 1 : 0);
+                const box = document.querySelector('.tb-main .tb-reveal');
+                const hist = [...document.querySelectorAll('details.tb-history')].find(d => d.querySelector('summary').textContent === 'Bisherige Runden');
+                const h0 = s.history[0];
+                return {
+                    hands: box.querySelectorAll('.tb-onehand').length, handBadges: box.querySelectorAll('.tb-onehand .bot-badge').length,
+                    handBots: Object.keys(r.hands).filter(seat => bot(+seat)).length,
+                    textBadges: box.querySelectorAll('.bot-badge').length - box.querySelectorAll('.tb-onehand .bot-badge').length,
+                    // „X zweifelt an“, „von Y“, „Z verliert …, W beginnt“
+                    textBots: bot(r.challenger) + bot(r.challenged) + bot(r.loser) + bot(r.winner),
+                    histBadges: hist ? hist.querySelectorAll('li')[0].querySelectorAll('.bot-badge').length : -1,
+                    histBots: bot(h0.challenger) + bot(h0.challenged) + bot(h0.loser),
+                };
+            });
+            await check(v.hands === 4 && v.handBadges === 2 && v.handBots === 2, `${p.name}: revealed hands show the badge at the two bots (${JSON.stringify(v)})`, [p]);
+            await check(v.textBadges === v.textBots, `${p.name}: reveal text marks exactly the bots (${v.textBadges} badges, ${v.textBots} expected)`, [p]);
+            await check(v.histBadges === v.histBots, `${p.name}: round history marks exactly the bots (${v.histBadges} badges, ${v.histBots} expected)`, [p]);
+        }
+    }
+
+    let sawBotBid = false;
+    for (let round = 1; round <= 3; round++) {
+        sawBotBid = (await playRound()) || sawBotBid;
+        await checkReveal();
+        if (round === 1) {
+            await A.checkNoHScroll('trombone reveal with bots (mobile)');
+            await snap([A, B], 'bot-reveal');
+        }
+        await sleep(1500);
+        await check(await A.page.evaluate(() => current.room.state.phase === 'reveal'), 'bots never click “Nächste Runde”', [A]);
+        await B.click('.tb-main .btn.primary', 'Nächste Runde');
+        await all(players, p => p.waitText(`Runde ${round + 1}`, '.tb-info'));
+    }
+    await check(sawBotBid, 'a bot made a bid within three rounds', players);
+
+    step('remove a bot from the running game; it can be proposed again and does not vote');
+    const botName = (await rows(A)).find(r => r.badge).name;
+    await A.clickFn(() => {
+        const row = [...document.querySelectorAll('.tb-side .tb-player')].find(e => e.querySelector('.bot-badge') && !e.classList.contains('out'));
+        return row && row.querySelector('.tb-remove');
+    }, 'remove a bot');
+    await all(players, p => p.waitFor(() => document.querySelectorAll('.tb-side .tb-player.out .bot-badge').length === 1));
+    await check(A.dialogs.some(d => d.startsWith('confirm') && d.includes(`${botName} aus diesem Spiel nehmen`)), 'removing a bot from the game asks for confirmation', [A]);
+    // Vorschlagen kann, wer in der Runde mitspielt – unabhängig davon, wer gerade am Zug ist
+    await A.click('.tb-side .btn', '+ Person aufnehmen');
+    await check(await badges(A, '.tb-add .tb-chips') === 1, 'the removed bot is offered with its badge', [A]);
+    await A.click('.tb-add .tb-chip', botName);
+    await A.click('.tb-add .tb-rankbtn', '1', { exact: true });
+    await A.click('.tb-add .btn.primary', 'vorschlagen');
+    await B.waitText('Anna möchte');
+    await check(await badges(B, '.tb-proposal') === 1 && (await B.text('.tb-proposal')).includes('Zustimmung: 1 von 2'), 'proposal shows the badge; only the two humans vote', [B]);
+    await B.click('.tb-vote .btn.primary', 'Zustimmen');
+    await all(players, p => p.waitText('wurde aufgenommen.'));
+    await all(players, p => p.waitFor(() => document.querySelectorAll('.tb-side .tb-player.joining .bot-badge').length === 1));
+
+    step('abort: the bots stay at the table for the next game');
+    await A.click('.tb-extras .link', 'Spiel abbrechen');
+    await all(players, p => p.waitText('Wer spielt mit?'));
+    for (const p of players) await check(await badges(p, '.tb-players') === 2, `${p.name}: both bots are still seated`, [p]);
+
+    step('instance without weight file: no bots offered');
+    await A.goto(`${BASE}/b/`);
+    await A.createTable('Trombone');
+    await A.waitText('Wer spielt mit?');
+    await check(!(await A.exists('.tb-addbot')), 'no “Bot hinzufügen” without a weight file', [A]);
+});
+
 // --- Wer bin ich? ----------------------------------------------------------------
 
 defineSuite('werbinich', async (browser, players) => {
@@ -1203,6 +1422,7 @@ defineSuite('lobby-a', async (browser, players) => {
     await L.goto(`${BASE}/a/`);
     await L.waitText('Offene Tische');
     await check(await L.exists('footer a[href="https://example.org/impressum"]'), 'footer link (Impressum) is rendered', [L]);
+    await check(await L.exists('head link[rel="icon"][href="https://example.org/logo.png"]'), 'configured favicon is linked', [L]);
     await check(await L.exists('.sa-note a[href^="mailto:"]'), 'contact link is rendered', [L]);
     const url = await L.createTable('Vier in einer Reihe');
     const id = await L.roomId();
@@ -1396,6 +1616,12 @@ defineSuite('english', async (browser, players) => {
 
     step('trombone in English: start and bid');
     await E.goto(urls.trombone);
+    await E.click('.tb .tb-addbot', 'Add bot');
+    await E.waitFor(() => !!document.querySelector('.tb-players .bot-badge'));
+    await check((await E.text('.tb')).includes('Start game (1 player + 1 bot)'), 'English start button counts people and bots', [E]);
+    await leaks(E, 'trombone lobby with a bot');
+    await E.click('.tb-players .tb-remove[title="Remove bot"]');
+    await E.waitFor(() => !document.querySelector('.tb-players .bot-badge'));
     await F.goto(urls.trombone);
     await F.click('.tb .btn.primary', 'Join');
     await E.waitText('Finn');

@@ -241,14 +241,15 @@ function renderRoomList(list, rooms) {
     }
     list.replaceChildren(...rooms.map(r => {
         const g = Games[r.game];
-        const seated = r.players.filter(Boolean);
+        // Namen der Sitzenden; Bots (Plätze in r.bots, vom Server) mit Abzeichen
+        const seated = r.players.map((name, i) => (name ? [name, (r.bots || []).includes(i) ? botBadge() : null] : null)).filter(Boolean);
         const free = r.players.length - seated.length;
         return h('a', { class: 'card room-row', href: '#r=' + r.id },
             h('span', { class: 'game-icon small' }, gameIcon(g)),
             h('span', { class: 'room-main' },
                 h('b', {}, r.title || (g ? g.name : r.game)),
                 h('span', { class: 'muted small' },
-                    seated.length ? seated.join(', ') : t('noch niemand', 'nobody yet'),
+                    seated.length ? seated.flatMap((who, i) => (i ? [', ', ...who] : who)) : t('noch niemand', 'nobody yet'),
                     free ? ' · ' + (free === 1 ? t('1 Platz frei', '1 seat free') : t(`${free} Plätze frei`, `${free} seats free`)) : '',
                     r.over ? t(' · beendet', ' · finished') : '',
                     ' · ' + timeAgo(r.updated)),
@@ -449,6 +450,7 @@ function renderRoomUnsafe() {
         sit: seat => { if (ensureName()) return act('sit', { seat, name: me.name }); },
         stand: () => act('stand'),
         kick: seat => act('kick', { seat }),
+        bot: (op, seat) => act('bot', { op, seat }),   // Trombone: Bot hinzufügen ('add') oder entfernen ('remove')
     };
     const notice = game.notice ? game.notice(state, mySeat) : null;
     notifyTurn(ctx.isMyTurn, notice, !!(game.attention && game.attention(state, mySeat)));

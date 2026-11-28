@@ -17,6 +17,8 @@
  * Server, siehe Trombone.php und WerBinIch.php.
  *
  * Missbrauchsschutz: Anfragelimits pro IP (RateLimit.php), Größenlimits, automatisches Aufräumen.
+ * Trombone-Bots kosten Rechenzeit auf diesem Server; für sie gibt es eigene Grenzen (Bots pro Tisch, pro IP
+ * und insgesamt, Bot-Züge pro Minute – siehe DEFAULTS und bot_budget()).
  */
 
 namespace GameNight;
@@ -46,9 +48,15 @@ const DEFAULTS = [
     'contact_url'          => '',      // Link für Hinweise/Fehlermeldungen in der Übersicht
     'games'                => [],      // angebotene Spiele (IDs aus GAMES); leer = alle außer WIP_GAMES
     'proxy_ip_header'      => '',      // hinter einem Proxy: Kopfzeile mit der Besucheradresse, z. B. 'CF-Connecting-IP'
+    'bots'                 => true,    // Trombone: Bots anbieten (nur mit passender Gewichtsdatei, siehe TromboneBot.php)
+    'max_bots'             => 7,       // Trombone: höchstens so viele Bots pro Tisch (0 = keine)
+    'max_bots_per_client'  => 21,      // Trombone: gleichzeitig sitzende Bots, die eine IP hingesetzt hat; 0 = unbegrenzt
+    'max_bots_total'       => 70,      // Trombone: gleichzeitig sitzende Bots in der ganzen Instanz; 0 = unbegrenzt
+    'bot_moves_per_minute' => 600,     // Trombone: Bot-Züge pro Minute in der ganzen Instanz (pro IP ein Viertel); 0 = unbegrenzt
 ];
 
 require_once __DIR__ . '/Trombone.php';
+require_once __DIR__ . '/TromboneBot.php';
 require_once __DIR__ . '/WerBinIch.php';
 require_once __DIR__ . '/Konferenz.php';
 require_once __DIR__ . '/RateLimit.php';
@@ -78,6 +86,15 @@ function instance_config(array $raw, string $dataDir, string $stateDir): array
         // Adresse des Besuchers für die Anfragelimits: null = REMOTE_ADDR (der Grav-Adapter setzt Grav's Ermittlung ein)
         'client_ip'           => is_string($c['proxy_ip_header']) && $c['proxy_ip_header'] !== '' ? forwarded_ip($c['proxy_ip_header']) : null,
         'id'                  => substr(hash('sha256', rtrim($dataDir, '/')), 0, 12),   // für Zählerdateien
+        'bots'                => (bool)$c['bots'],
+        'max_bots'            => max(0, min(GAMES['trombone'] - 1, (int)$c['max_bots'])),   // ein Platz bleibt für einen Menschen
+        'max_bots_per_client' => max(0, (int)$c['max_bots_per_client']),
+        'max_bots_total'      => max(0, (int)$c['max_bots_total']),
+        'bot_moves_per_minute' => max(0, (int)$c['bot_moves_per_minute']),
+        // Nicht einstellbar (nur die Tests setzen hier andere Werte ein): Gewichtsdatei des Trombone-Bots
+        // und seine Denkpause in Millisekunden [von, bis]
+        'net_file'            => __DIR__ . '/trombone-net.bin',
+        'bot_delay'           => [2000, 4000],
     ];
 }
 
@@ -156,6 +173,12 @@ const EN = [
     'Die Runde hat gerade neu begonnen – bitte noch einmal prüfen.' => 'The round has just restarted – please check again.',
     'Die Runde läuft schon' => 'The round is already running',
     'Du spielst in diesem Spiel nicht mit' => 'You are not playing in this game',
+    'Mindestens ein Mensch muss mitspielen' => 'At least one human must play',
+    'Hier gibt es keine Bots' => 'There are no bots here',
+    'Die Bots können hier gerade nicht mitspielen – bitte zuerst entfernen' => 'The bots cannot play here right now – please remove them first',
+    'Mehr Bots sind an diesem Tisch nicht möglich' => 'No more bots are possible at this table',
+    'Auf diesem Platz sitzt kein Bot' => 'There is no bot on this seat',
+    'Gerade sind keine weiteren Bots möglich – bitte später noch einmal versuchen' => 'No more bots are possible right now – please try again later',
     'Die Begriffe stehen schon fest' => 'The terms have already been chosen',
     'Ungültige Person' => 'Invalid person',
     'Für diese Person sucht schon jemand anderes einen Begriff aus' => 'Someone else is already choosing a term for this person',
@@ -192,8 +215,24 @@ function lang(?string $set = null): string
     return $lang;
 }
 
+/**
+ * Soll fail() eine Ausnahme werfen, statt die Anfrage zu beenden? Nur während eines Bot-Zugs: Der läuft in der
+ * Abfrage eines Menschen, und ein Fehler des Bots darf diese Abfrage nicht abbrechen (siehe tbot_move).
+ */
+function fail_throws(?bool $set = null): bool
+{
+    static $on = false;
+    if ($set !== null) {
+        $on = $set;
+    }
+    return $on;
+}
+
 function fail(string $msg, int $code = 400): void
 {
+    if (fail_throws()) {
+        throw new \RuntimeException($msg, $code);
+    }
     if (lang() === 'en' && isset(EN[$msg])) {
         $msg = EN[$msg];
     }
@@ -320,7 +359,18 @@ function with_room(string $id, callable $fn)
         fail('Tischdatei beschädigt', 500);
     }
     $result = $fn($room);
+    if ($result !== null && bots_only($room['seats'] ?? [])) {
+        // Spamschutz: Sitzen nur noch Bots am Tisch (der letzte Mensch ist aufgestanden oder wurde entfernt),
+        // wird der Tisch sofort gelöscht – ein Spiel ohne Menschen wird nicht zu Ende gespielt.
+        @unlink($file);
+        flock($fh, LOCK_UN);
+        fclose($fh);
+        return $room;
+    }
     if ($result !== null) {
+        if ($room['game'] === 'trombone') {
+            tbot_schedule($room);   // ist jetzt ein Bot am Zug, beginnt im selben Schreibvorgang seine Denkpause
+        }
         $room['version']++;
         $room['updated'] = time();
         $content = room_content($room);   // vor dem Leeren der Datei: scheitert das, bleibt alles, wie es war
@@ -347,11 +397,15 @@ function with_room(string $id, callable $fn)
 /**
  * Spiele mit Server-Logik: Sitzt keine mitspielende Person ($playing) mehr mit ihrem Token an ihrem Platz
  * (alle weg, entfernt oder mit neuem Browser zurück)? Dann darf jede Person am Tisch das Spiel abbrechen –
- * sonst bliebe es für immer hängen.
+ * sonst bliebe es für immer hängen. Bots zählen nicht als anwesend: Sie ziehen nur, solange Menschen die
+ * Seite offen haben, und klicken nie weiter.
  */
 function orphaned(array $room, callable $playing): bool
 {
     foreach ($room['state']['players'] ?? [] as $p) {
+        if (!empty($p['bot'])) {
+            continue;
+        }
         $seatToken = $room['seats'][$p['seat']]['token'] ?? null;
         if ($playing($p) && is_string($seatToken) && isset($p['token']) && hash_equals($p['token'], $seatToken)) {
             return false;
@@ -360,13 +414,62 @@ function orphaned(array $room, callable $playing): bool
     return true;
 }
 
-/** Tisch ohne geheime Tokens (und ohne fremde Karten/Begriffe) für die Ausgabe an Platz $seat / Token $token. */
+/**
+ * Rechenzeit-Budget für Bot-Züge: Darf diese Anfrage jetzt einen Bot ziehen lassen? Gezählt wird pro Absender
+ * (ein Viertel des Gesamtbudgets – so kann eine einzelne IP es nicht allein aufbrauchen) und für die ganze
+ * Instanz. Ist ein Budget erschöpft, zieht der Bot einfach später; die Abfrage selbst läuft normal weiter.
+ */
+function bot_budget(string $client): bool
+{
+    $limit = cfg()['bot_moves_per_minute'] ?? 0;
+    if ($limit <= 0) {
+        return true;
+    }
+    return rate_limit('botc', $client, max(1, intdiv($limit + 3, 4)), 60) && count_request('bot', 'all', $limit, 60);
+}
+
+/**
+ * Wie viele Bots sitzen gerade in dieser Instanz – insgesamt und von diesem Absender hingesetzt?
+ * (Ohne Sperren über mehrere Tische hinweg; bei gleichzeitigen Anfragen kann die Grenze um wenige Bots
+ * überschritten werden. Der Absender-Schlüssel wechselt täglich, siehe RateLimit.php.)
+ */
+function bot_counts(string $client): array
+{
+    $total = $mine = 0;
+    foreach (room_files() as $file) {
+        foreach (read_room_file($file)['seats'] ?? [] as $s) {
+            if (!empty($s['bot'])) {
+                $total++;
+                $mine += ($s['by'] ?? null) === $client ? 1 : 0;
+            }
+        }
+    }
+    return [$total, $mine];
+}
+
+/** Die Menschen an einem Tisch (Plätze ohne die Bots, siehe Aktion 'bot'). */
+function humans(array $seats): array
+{
+    return array_filter($seats, fn($s) => $s && empty($s['bot']));
+}
+
+/** Sitzen an einem Tisch Bots, aber keine Menschen mehr? (Solche Tische löscht with_room() sofort.) */
+function bots_only(array $seats): bool
+{
+    return !humans($seats) && count(array_filter($seats)) > 0;
+}
+
+/**
+ * Tisch ohne geheime Tokens (und ohne fremde Karten/Begriffe) für die Ausgabe an Platz $seat / Token $token.
+ * Das Kennzeichen 'bot' eines Platzes stammt immer vom Server (Aktion 'bot'), nie aus einer Anfrage.
+ */
 function public_room(array $room, ?int $seat, string $token): array
 {
     if ($room['game'] === 'trombone') {
         $orphaned = tb_orphaned($room);
         $room['state'] = tb_view($room['state'], $seat, $token);
         $room['state']['orphaned'] = $orphaned;   // dann darf jede Person am Tisch abbrechen
+        $room['maxBots'] = tbot_offered();        // so viele Bots bietet die Instanz pro Tisch an (0 = keine)
     } elseif ($room['game'] === 'werbinich') {
         $orphaned = wb_orphaned($room);
         $room['state'] = wb_view($room['state'], $seat, $token);
@@ -381,7 +484,7 @@ function public_room(array $room, ?int $seat, string $token): array
     unset($room['creator']);
     foreach ($room['seats'] as $i => $s) {
         if ($s !== null) {
-            $room['seats'][$i] = ['name' => $s['name']];
+            $room['seats'][$i] = ['name' => $s['name']] + (!empty($s['bot']) ? ['bot' => true] : []);
         }
     }
     return $room;
@@ -512,8 +615,8 @@ function int_param(array $in, string $key, int $default): int
 
 /**
  * Alte Tische löschen: ohne Aktivität seit room_ttl, oder – falls empty_room_ttl gesetzt ist –
- * Tische, an denen niemand sitzt, schon nach empty_room_ttl. (Jedes Speichern erneuert das
- * Änderungsdatum der Datei; bloßes Ansehen nicht.)
+ * Tische, an denen niemand sitzt (Bots zählen nicht), schon nach empty_room_ttl. (Jedes Speichern
+ * erneuert das Änderungsdatum der Datei; bloßes Ansehen nicht.)
  */
 function cleanup(): void
 {
@@ -525,7 +628,7 @@ function cleanup(): void
         if ($age > $ttl) {
             delete_if($file, fn($room) => true, $now - $ttl);
         } elseif ($emptyTtl > 0 && $age > $emptyTtl) {
-            delete_if($file, fn($room) => !array_filter($room['seats'] ?? []), $now - $emptyTtl);
+            delete_if($file, fn($room) => !humans($room['seats'] ?? []), $now - $emptyTtl);
         }
     }
 }
@@ -637,6 +740,7 @@ function run(array $config): void
                     'title'   => $room['title'],
                     'updated' => $room['updated'],
                     'players' => array_map(fn($s) => $s ? $s['name'] : null, $room['seats']),
+                    'bots'    => array_keys(array_filter($room['seats'], fn($s) => !empty($s['bot']))),   // Plätze mit Bot
                     'over'    => !empty($room['state']['over']),
                 ];
             }
@@ -719,6 +823,22 @@ function run(array $config): void
             if (!$room) {
                 fail('Diesen Tisch gibt es nicht', 404);
             }
+            // Trombone: Ist ein Bot am Zug und seine Denkpause vorbei, zieht er jetzt – innerhalb dieser Anfrage
+            // (es gibt keinen eigenen Prozess; ohne offene Seite eines Menschen zieht kein Bot). Unter exklusiver
+            // Sperre wird neu geprüft, damit gleichzeitige Anfragen nicht zweimal ziehen; höchstens ein Zug pro Anfrage.
+            // Muss vor der Abkürzung „unchanged“ stehen: Der Zug entsteht ja erst durch diese Anfrage.
+            // Ein Fehler beim Bot-Zug darf die Abfrage des Menschen nie scheitern lassen: Dann wird der Tisch so
+            // ausgeliefert, wie er ist. (tbot_move fängt selbst alles ab und zieht notfalls einen Ersatzzug.)
+            if ($room['game'] === 'trombone' && tbot_due($room['state']) && bot_budget($client)) {
+                try {
+                    $room = with_room($room['id'], function (&$room) {
+                        return tbot_move($room) ? true : null;
+                    });
+                } catch (\Throwable $e) {
+                    fail_throws(false);
+                    $room = read_room_file($file) ?? $room;
+                }
+            }
             $since = int_param($in, 'since', 0);
             if ($since && $room['version'] === $since) {
                 out(['unchanged' => true]);
@@ -776,7 +896,65 @@ function run(array $config): void
                 if (!array_key_exists($target, $room['seats'])) {
                     fail('Ungültiger Platz');
                 }
+                // Ein Bot, der gerade mitspielt, wird dabei auch aus dem Spiel genommen (wie 'remove', mit
+                // denselben Rechten) – sonst bliebe das Spiel hängen, sobald er am Zug ist.
+                if ($room['game'] === 'trombone' && tbot_playing($room, $target)) {
+                    tb_act($room, seat_of($room, $token), $token, 'remove', ['seat' => $target]);
+                }
                 $room['seats'][$target] = null;
+                return true;
+            });
+            $seat = seat_of($room, $token);
+            out(['room' => public_room($room, $seat, $token), 'mySeat' => $seat]);
+
+        case 'bot':
+            // Trombone: einen Bot auf einen freien Platz setzen ('add') oder wieder wegnehmen ('remove') – nur
+            // durch Menschen am Tisch. Allein hier entsteht das Kennzeichen 'bot' eines
+            // Platzes; sein Token hat nicht die Form der Browser-Tokens, kein Client kann es also je vorlegen.
+            $op = param($in, 'op');
+            $target = int_param($in, 'seat', -1);
+            // Grenzen pro Absender und für die Instanz: vor der Sperre zählen (nie zwei Tische zugleich sperren)
+            $counts = $op === 'add' && (cfg()['max_bots_total'] > 0 || cfg()['max_bots_per_client'] > 0) ? bot_counts($client) : [0, 0];
+            $room = with_room(param($in, 'room'), function (&$room) use ($op, $target, $token, $counts, $client) {
+                if ($room['game'] !== 'trombone' || !in_array($op, ['add', 'remove'], true)) {
+                    fail('Unbekannte Aktion');
+                }
+                if (seat_of($room, $token) === null) {
+                    fail('Du sitzt nicht an diesem Tisch', 403);
+                }
+                if (!array_key_exists($target, $room['seats'])) {
+                    fail('Ungültiger Platz');
+                }
+                // Im laufenden Spiel setzt 'add' den Bot nur an den Tisch: Mitspielen kann er erst nach einer
+                // Abstimmung der Menschen (Spielaktion 'propose', wie bei einer Person). Ein Bot, der gerade
+                // mitspielt, lässt sich hier nicht wegnehmen (dafür: 'kick').
+                if ($op === 'remove' && tbot_playing($room, $target)) {
+                    fail('Das Spiel läuft schon', 409);
+                }
+                if ($op === 'remove') {
+                    if (empty($room['seats'][$target]['bot'])) {
+                        fail('Auf diesem Platz sitzt kein Bot');
+                    }
+                    $room['seats'][$target] = null;
+                    return true;
+                }
+                $max = tbot_offered();
+                if ($max === 0) {
+                    fail('Hier gibt es keine Bots', 403);
+                }
+                if ($room['seats'][$target] !== null) {
+                    fail('Platz ist schon besetzt', 409);
+                }
+                if (count(array_filter($room['seats'], fn($s) => !empty($s['bot']))) >= $max) {
+                    fail('Mehr Bots sind an diesem Tisch nicht möglich', 409);
+                }
+                if ((cfg()['max_bots_total'] > 0 && $counts[0] >= cfg()['max_bots_total'])
+                    || (cfg()['max_bots_per_client'] > 0 && $counts[1] >= cfg()['max_bots_per_client'])) {
+                    fail('Gerade sind keine weiteren Bots möglich – bitte später noch einmal versuchen', 429);
+                }
+                // 'by': wer den Bot hingesetzt hat (pseudonym, nur für max_bots_per_client; wird nie ausgeliefert)
+                $room['seats'][$target] = ['name' => tbot_seat_name($room), 'token' => 'bot-' . bin2hex(random_bytes(16)),
+                                           'bot' => true, 'by' => $client];
                 return true;
             });
             $seat = seat_of($room, $token);
@@ -850,7 +1028,7 @@ function run(array $config): void
             $file = room_path(param($in, 'room'));
             // unter Sperre löschen, damit kein gleichzeitiger Speichervorgang dazwischenkommt
             with_room(param($in, 'room'), function (&$room) use ($token, $file) {
-                $anyone = count(array_filter($room['seats'])) > 0;
+                $anyone = count(humans($room['seats'])) > 0;
                 if ($anyone && seat_of($room, $token) === null) {
                     fail('Nur Mitspielende können einen besetzten Tisch löschen', 403);
                 }
