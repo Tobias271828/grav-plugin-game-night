@@ -4,6 +4,11 @@ return [
     // Page title (default: "Spieleabend" in German, "Game Night" in English)
     // 'title' => 'Game Night',
 
+    // Icon in the browser tab (favicon): a file on this server, e.g. 'favicon.png' next to index.php (it survives
+    // updates there), or a full address like 'https://example.org/logo.svg'. Empty: the browser looks for
+    // /favicon.ico at the top of the domain.
+    // 'favicon' => 'favicon.png',
+
     // Folder for tables and internal files. Ideally outside the web root, e.g. '/home/user/game-night-data'.
     // Default: data/ next to index.php (blocked by data/.htaccess – Apache only).
     // 'data_dir' => __DIR__ . '/data',

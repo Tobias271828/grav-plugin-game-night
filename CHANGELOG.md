@@ -1,10 +1,11 @@
 # v1.3.0
-## unreleased
+## 2026-11-28
 
 1. [](#new)
     * Trombone: bots (“TromboneZero”, T0 for short). Seated players can add and remove bots before the start, and add one to a running game if all human players agree (like adding a person); a bot gets a random animal as its name and a “Bot” badge that only the server assigns. Bots draw their moves from a small neural network evaluated in plain PHP on the server (weight file `core/trombone-net.bin`), inside the requests of the people at the table after a short thinking time – no background process, no data leaves the server. A game needs at least one human; bots do not vote on adding players and can be removed from a running game like anyone else
     * New instance settings `bots` (default on) and `max_bots` (default 7 per table). Without a matching weight file an instance offers no bots; everything else keeps working
     * Limits for the computing time of bots: `max_bots_per_client` (default 21 bots per IP address), `max_bots_total` (default 70 per instance) and `bot_moves_per_minute` (default 600 per instance, a quarter of that per IP address; when used up, bots move later). Bots stop moving when no seated human is playing any more, and a failing bot can neither break a request nor block a game (it then challenges or makes the lowest bid)
+    * Standalone: optional setting `favicon` for an own icon in the browser tab (a file on the same server or a full address)
 2. [](#improved)
     * A table at which only bots are left is deleted at once (spam protection): when the last human leaves, the game is not played on
 

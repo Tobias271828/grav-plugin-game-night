@@ -45,10 +45,28 @@ function e(string $s): string
 }
 
 /**
+ * Einstellung „favicon“ der Standalone-Version: Pfad auf demselben Server (z. B. 'favicon.png' neben index.php
+ * oder '/logo.svg') oder vollständige http(s)-Adresse. Rückgabe [Adresse, Herkunft für die Content-Security-Policy
+ * (nur bei fremder Adresse, sonst null)] – oder null, wenn nichts oder Unbrauchbares eingetragen ist.
+ */
+function favicon(mixed $value): ?array
+{
+    if (!is_string($value) || $value === '' || strlen($value) > 500 || preg_match('/[\x00-\x20"\'<>\\\\;,]/', $value)) {
+        return null;
+    }
+    if (preg_match('~^(https?://[a-z0-9.-]+(?::\d{1,5})?)(/|$)~i', $value, $m)) {
+        return [$value, strtolower($m[1])];
+    }
+    // sonst nur Pfade: kein anderes Schema (javascript:, data:) und keine Adresse ohne Schema (//example.org)
+    return preg_match('~^(?!//)[^:]*$~', $value) ? [$value, null] : null;
+}
+
+/**
  * Seite ausgeben.
  * $config: instance_config(...); $page: ['assets' => URL des assets-Ordners (mit / am Ende),
  * 'api' => URL der API, 'title' => Seitentitel (optional), 'links' => Links für die Fußzeile:
- * [Text => URL] für beide Sprachen oder ['de' => [Text => URL], 'en' => [Text => URL]]].
+ * [Text => URL] für beide Sprachen oder ['de' => [Text => URL], 'en' => [Text => URL]],
+ * 'favicon' => siehe favicon() (optional)].
  */
 function render_page(array $config, array $page): void
 {
@@ -62,7 +80,9 @@ function render_page(array $config, array $page): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('X-Robots-Tag: noindex, nofollow');
-    header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    $icon = favicon($page['favicon'] ?? null);
+    header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:"
+         . ($icon && $icon[1] !== null ? ' ' . $icon[1] : '') . "; "
          . "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
     header('Content-Language: ' . $lang);
 
@@ -85,6 +105,9 @@ function render_page(array $config, array $page): void
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title><?= e($title) ?></title>
+<?php if ($icon): ?>
+<link rel="icon" href="<?= e($icon[0]) ?>">
+<?php endif; ?>
 <link rel="stylesheet" href="<?= e($assets) ?>standalone.css?v=<?= $v ?>">
 <link rel="stylesheet" href="<?= e($assets) ?>style.css?v=<?= $v ?>">
 </head>

@@ -121,6 +121,7 @@ async function startServer() {
             a: { ...common, lobby: true, data_dir: `${tmpDir}/a`, contact_url: 'mailto:test@example.org',
                  net_file: `${tmpDir}/trombone-net.bin`, bot_delay: [300, 700],
                  games: ['trombone', 'werbinich', 'handbrain', 'connect4', 'zahlenkampf', 'konferenz'],
+                 favicon: 'https://example.org/logo.png',
                  footer_links: { de: { Impressum: 'https://example.org/impressum' }, en: { 'Legal notice': 'https://example.org/legal' } } },
             b: { ...common, lobby: false, data_dir: `${tmpDir}/b`, net_file: `${tmpDir}/fehlt.bin` },
         },
@@ -1421,6 +1422,7 @@ defineSuite('lobby-a', async (browser, players) => {
     await L.goto(`${BASE}/a/`);
     await L.waitText('Offene Tische');
     await check(await L.exists('footer a[href="https://example.org/impressum"]'), 'footer link (Impressum) is rendered', [L]);
+    await check(await L.exists('head link[rel="icon"][href="https://example.org/logo.png"]'), 'configured favicon is linked', [L]);
     await check(await L.exists('.sa-note a[href^="mailto:"]'), 'contact link is rendered', [L]);
     const url = await L.createTable('Vier in einer Reihe');
     const id = await L.roomId();

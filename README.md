@@ -61,7 +61,8 @@ If `proxy_ip_header` is set, it is used on every Grav version.
 3. Updates: replace `core/`, `assets/` and `index.php`; `config.php` and your data stay.
 
 The language follows the browser and can be switched in the footer. For public instances, add your legal
-notice and privacy policy via `footer_links`.
+notice and privacy policy via `footer_links`. An own icon for the browser tab can be set with `favicon`
+(a file next to `index.php` or a full address).
 
 ## Trombone bots
 
@@ -95,8 +96,9 @@ not part of the release packages). Replacing the network means replacing the wei
   left is deleted at once, and bots stop moving as soon as no seated human is playing any more.
 - A bot can never break a request or block a game: whatever goes wrong while it decides (damaged weight file,
   unexpected state) is caught, and it then plays a move that is always legal (challenge, or the lowest bid).
-- The weight file `core/trombone-net.bin` can be downloaded by anyone who knows its address. It contains no
-  secrets, but it is the complete bot.
+- The weight file `core/trombone-net.bin` contains no secrets, but it is the complete bot. As a Grav plugin it can
+  be downloaded by anyone who knows its address; the standalone version blocks `core/` in its `.htaccess`
+  (Apache with mod_rewrite).
 - There are no accounts: everyone who can open a table can sit down, and everyone seated can free seats and
   delete the table. **With a table list (`lobby: true`) that is every visitor of the page**, so use
   `lobby: false` (tables only reachable via their 64-bit link) unless the page is hidden or restricted.
